@@ -16,13 +16,13 @@ class StoreManagementApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Store Management System',
+      title: 'NU Store Management',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1E3A8A),
           primary: const Color(0xFF2563EB),
-          background: const Color(0xFFF8FAFC),
+          surface: const Color(0xFFF8FAFC),
         ),
         useMaterial3: true,
         fontFamily: 'Roboto',
