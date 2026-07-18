@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/api_service.dart';
 
-// এই প্রোভাইডারের মাধ্যমে আমরা যেকোনো স্ক্রিন থেকে ApiService ব্যবহার করতে পারব
+import '../core/api_service.dart';
+import '../shared/providers/core_providers.dart';
+
 final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
+  return ApiService(ref.watch(apiClientProvider));
 });
