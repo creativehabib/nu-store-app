@@ -3,6 +3,7 @@ class AuthState {
     this.token,
     this.user,
     this.isLoading = false,
+    this.isInitialized = false,
     this.requiresTwoFactor = false,
     this.isApproved = false,
     this.errorMessage,
@@ -11,6 +12,7 @@ class AuthState {
   final String? token;
   final Map<String, dynamic>? user;
   final bool isLoading;
+  final bool isInitialized;
   final bool requiresTwoFactor;
   final bool isApproved;
   final String? errorMessage;
@@ -21,6 +23,7 @@ class AuthState {
     String? token,
     Map<String, dynamic>? user,
     bool? isLoading,
+    bool? isInitialized,
     bool? requiresTwoFactor,
     bool? isApproved,
     String? errorMessage,
@@ -30,6 +33,7 @@ class AuthState {
       token: token ?? this.token,
       user: user ?? this.user,
       isLoading: isLoading ?? this.isLoading,
+      isInitialized: isInitialized ?? this.isInitialized,
       requiresTwoFactor: requiresTwoFactor ?? this.requiresTwoFactor,
       isApproved: isApproved ?? this.isApproved,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,

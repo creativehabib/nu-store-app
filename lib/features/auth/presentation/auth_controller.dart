@@ -27,9 +27,13 @@ class AuthController extends StateNotifier<AuthState> {
         token: session.token,
         user: session.user,
         isApproved: _isApproved(session.user),
+        isInitialized: true,
         clearError: true,
       );
+      return;
     }
+
+    state = state.copyWith(isInitialized: true, clearError: true);
   }
 
   Future<void> login(String email, String password, {String? twoFactorCode}) async {
@@ -53,12 +57,14 @@ class AuthController extends StateNotifier<AuthState> {
         token: token,
         user: user,
         isLoading: false,
+        isInitialized: true,
         requiresTwoFactor: requiresTwoFactor,
         isApproved: isApproved,
       );
     } catch (error) {
       state = state.copyWith(
         isLoading: false,
+        isInitialized: true,
         errorMessage: 'Login failed. Please verify credentials, 2FA, or approval status.',
       );
     }
@@ -71,7 +77,7 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (_) {
       await _repository.clearSession();
     }
-    state = const AuthState();
+    state = const AuthState(isInitialized: true);
   }
 
   bool _isApproved(Map<String, dynamic>? user) {
