@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/domain/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../../screens/home_screen.dart';
+import '../../../shared/widgets/api_collection_screen.dart';
 import 'dashboard_controller.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -10,7 +12,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedIndex = ref.watch(selectedNavIndexProvider);
+    final requestedIndex = ref.watch(selectedNavIndexProvider);
     final auth = ref.watch(authControllerProvider);
 
     if (!auth.isInitialized) {
@@ -32,6 +34,9 @@ class DashboardScreen extends ConsumerWidget {
       );
     }
 
+    final navItems = _navItemsFor(auth.role);
+    final selectedIndex = requestedIndex >= navItems.length ? 0 : requestedIndex;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('NU Store Management'),
@@ -50,16 +55,23 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      drawer: _AppDrawer(userName: auth.user?['name'] as String? ?? 'Approved User'),
-      body: SafeArea(child: _DashboardBody(selectedIndex: selectedIndex)),
+      drawer: _AppDrawer(
+        userName: auth.user?['name'] as String? ?? 'Approved User',
+        role: auth.role,
+      ),
+      body: SafeArea(
+        child: _DashboardBody(
+          selectedIndex: selectedIndex,
+          navItems: navItems,
+          role: auth.role,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) => ref.read(selectedNavIndexProvider.notifier).state = index,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Inventory'),
-          NavigationDestination(icon: Icon(Icons.assignment_outlined), label: 'Requisitions'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        destinations: [
+          for (final item in navItems)
+            NavigationDestination(icon: Icon(item.icon), label: item.label),
         ],
       ),
     );
@@ -67,15 +79,24 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardBody extends ConsumerWidget {
-  const _DashboardBody({required this.selectedIndex});
+  const _DashboardBody({
+    required this.selectedIndex,
+    required this.navItems,
+    required this.role,
+  });
 
   final int selectedIndex;
+  final List<_NavItem> navItems;
+  final AppRole role;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (selectedIndex != 0) {
-      const labels = ['Dashboard', 'Inventory', 'Requisitions', 'Settings'];
-      return Center(child: Text('${labels[selectedIndex]} module coming next'));
+      return Center(child: Text('${navItems[selectedIndex].label} module coming next'));
+    }
+
+    if (!RolePermissions.can(role, AppPermission.manageInventory)) {
+      return _RoleDashboard(role: role);
     }
 
     final stats = ref.watch(dashboardStatsProvider);
@@ -107,6 +128,40 @@ class _DashboardBody extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RoleDashboard extends StatelessWidget {
+  const _RoleDashboard({required this.role});
+
+  final AppRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _drawerItemsFor(role);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          '${role.label} Dashboard',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text('Only your permitted requisition workflow actions are shown.'),
+        const SizedBox(height: 16),
+        for (final item in items)
+          Card(
+            child: ListTile(
+              leading: Icon(item.icon, color: const Color(0xFF2563EB)),
+              title: Text(item.label),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -153,9 +208,10 @@ class _OfflineStatsHint extends StatelessWidget {
 }
 
 class _AppDrawer extends StatelessWidget {
-  const _AppDrawer({required this.userName});
+  const _AppDrawer({required this.userName, required this.role});
 
   final String userName;
+  final AppRole role;
 
   @override
   Widget build(BuildContext context) {
@@ -165,17 +221,102 @@ class _AppDrawer extends StatelessWidget {
         children: [
           UserAccountsDrawerHeader(
             accountName: Text(userName),
-            accountEmail: const Text('NU Store Management'),
+            accountEmail: Text(role.label),
             currentAccountPicture: const CircleAvatar(child: Icon(Icons.person)),
           ),
-          const ListTile(leading: Icon(Icons.category_outlined), title: Text('Categories & Products')),
-          const ListTile(leading: Icon(Icons.add_box_outlined), title: Text('Stock In / Entries')),
-          const ListTile(leading: Icon(Icons.playlist_add), title: Text('Create Requisition')),
-          const ListTile(leading: Icon(Icons.approval_outlined), title: Text('Approval Workflow')),
-          const ListTile(leading: Icon(Icons.apartment_outlined), title: Text('Departments & Designations')),
-          const ListTile(leading: Icon(Icons.language), title: Text('Language Switcher')),
+          for (final item in _drawerItemsFor(role))
+            ListTile(
+              leading: Icon(item.icon),
+              title: Text(item.label),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+                );
+              },
+            ),
         ],
       ),
     );
   }
+}
+
+class _NavItem {
+  const _NavItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+List<_NavItem> _navItemsFor(AppRole role) {
+  final items = <_NavItem>[
+    const _NavItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
+  ];
+
+  if (RolePermissions.can(role, AppPermission.manageInventory)) {
+    items.add(const _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.createRequisition) ||
+      RolePermissions.can(role, AppPermission.viewRequisitionLocation) ||
+      RolePermissions.can(role, AppPermission.forwardRequisition) ||
+      RolePermissions.can(role, AppPermission.finalApprove)) {
+    items.add(const _NavItem(icon: Icons.assignment_outlined, label: 'Requisitions'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.manageSettings)) {
+    items.add(const _NavItem(icon: Icons.settings_outlined, label: 'Settings'));
+  }
+
+  return items;
+}
+
+List<_NavItem> _drawerItemsFor(AppRole role) {
+  final items = <_NavItem>[];
+
+  if (RolePermissions.can(role, AppPermission.manageInventory)) {
+    items.addAll(const [
+      _NavItem(icon: Icons.category_outlined, label: 'Categories & Products'),
+      _NavItem(icon: Icons.add_box_outlined, label: 'Stock In / Entries'),
+    ]);
+  }
+
+  if (RolePermissions.can(role, AppPermission.createRequisition)) {
+    items.add(const _NavItem(icon: Icons.playlist_add, label: 'Create Requisition'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.viewOwnRequisitions) ||
+      RolePermissions.can(role, AppPermission.viewRequisitionLocation)) {
+    items.add(const _NavItem(icon: Icons.timeline, label: 'My Requisitions & Status'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.forwardRequisition)) {
+    items.add(const _NavItem(icon: Icons.forward_to_inbox, label: 'Initiator Queue'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.assistantDirectorVerify)) {
+    items.add(const _NavItem(icon: Icons.fact_check_outlined, label: 'Assistant Director Review'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.deputyDirectorVerify)) {
+    items.add(const _NavItem(icon: Icons.verified_outlined, label: 'Deputy Director Review'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.finalApprove)) {
+    items.add(const _NavItem(icon: Icons.approval_outlined, label: 'Director Final Approval'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.printFinalRequisition)) {
+    items.add(const _NavItem(icon: Icons.print_outlined, label: 'Final Print'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.manageOrganization)) {
+    items.add(const _NavItem(icon: Icons.apartment_outlined, label: 'Departments & Designations'));
+  }
+
+  if (RolePermissions.can(role, AppPermission.manageSettings)) {
+    items.add(const _NavItem(icon: Icons.language, label: 'Language & Settings'));
+  }
+
+  return items;
 }

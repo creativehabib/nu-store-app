@@ -51,9 +51,10 @@ class AuthController extends StateNotifier<AuthState> {
         password: password,
         twoFactorCode: twoFactorCode,
       );
-      final requiresTwoFactor = payload['two_factor_required'] == true;
-      final token = payload['token'] as String?;
-      final user = Map<String, dynamic>.from((payload['user'] as Map?) ?? {});
+      final data = Map<String, dynamic>.from((payload['data'] as Map?) ?? payload);
+      final requiresTwoFactor = data['two_factor_required'] == true;
+      final token = data['token'] as String?;
+      final user = Map<String, dynamic>.from((data['user'] as Map?) ?? {});
       final isApproved = _isApproved(user);
 
       if (token != null && !requiresTwoFactor && isApproved) {

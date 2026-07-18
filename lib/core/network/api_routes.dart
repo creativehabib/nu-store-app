@@ -12,5 +12,6 @@ class ApiRoutes {
   static const String designations = '/api/v1/designations';
   static const String purposes = '/api/v1/purposes';
   static const String requisitions = '/api/v1/requisitions';
+  static const String settings = '/api/v1/settings';
   static const String stockEntries = '/api/v1/stock-entries';
 }

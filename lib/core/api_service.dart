@@ -14,7 +14,7 @@ class ApiService {
 
   Future<Response<dynamic>> login(String email, String password) {
     return _apiClient.dio.post(ApiRoutes.login, data: {
-      'email': email,
+      'login': email,
       'password': password,
     });
   }
@@ -36,6 +36,8 @@ class ApiService {
   Future<Response<dynamic>> getPurposes() => _apiClient.dio.get(ApiRoutes.purposes);
 
   Future<Response<dynamic>> getRequisitions() => _apiClient.dio.get(ApiRoutes.requisitions);
+
+  Future<Response<dynamic>> getSettings() => _apiClient.dio.get(ApiRoutes.settings);
 
   Future<Response<dynamic>> getStockEntries() => _apiClient.dio.get(ApiRoutes.stockEntries);
 }

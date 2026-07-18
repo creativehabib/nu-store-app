@@ -1,3 +1,5 @@
+import 'app_role.dart';
+
 class AuthState {
   const AuthState({
     this.token,
@@ -18,6 +20,10 @@ class AuthState {
   final String? errorMessage;
 
   bool get isAuthenticated => token != null && isApproved && !requiresTwoFactor;
+
+  AppRole get role => AppRole.fromUser(user);
+
+  bool can(AppPermission permission) => RolePermissions.can(role, permission);
 
   AuthState copyWith({
     String? token,

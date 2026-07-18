@@ -52,7 +52,7 @@ lib/
 The scaffold points to `https://store.creativehabib.com` by default and expects these Laravel endpoints under `/api/v1`:
 
 - `POST /auth/register` for new API user registration.
-- `POST /auth/login` returning `token`, `user`, and optional `two_factor_required`.
+- `POST /auth/login` with `login`, `password`, and optional `device_name`, returning nested `data.token` and `data.user`.
 - `GET /auth/me` for token validation and profile refresh.
 - `POST /auth/logout` for server-side token revocation.
 - `GET /inventory` for inventory rows used to derive current and low-stock counts.
@@ -60,7 +60,19 @@ The scaffold points to `https://store.creativehabib.com` by default and expects 
 - `GET /departments`, `GET /designations`, and `GET /purposes` for organization setup lists.
 - `GET /requisitions` for My Requisitions, pending requisition counts, and approval queue summaries.
 - `GET /stock-entries` for stock-in/entry lists and dashboard stock-entry summaries.
+- `GET /settings` for app/backend settings.
 
 The API client accepts `--dart-define=API_BASE_URL=...` and `--dart-define=API_TOKEN=...` overrides. If the user has not logged in yet, the provided bootstrap API token is attached as a bearer token so the configured list endpoints can be validated against the live domain.
 
 The auth controller treats users as approved when the API user payload contains `approved: true`, `is_approved: true`, or a non-null `approved_at`, matching a mobile equivalent of the Laravel `CheckIfApproved` middleware gate.
+
+## Role-based access rules
+
+The mobile UI uses `AppRole` and `RolePermissions` to map backend roles to visible navigation items and workflow actions:
+
+- `Admin`: full access to inventory, organization, settings, requisitions, approvals, forwarding, final approval, and print.
+- `Requisitioner`: can create requisitions and view their own requisition status/location.
+- `Initiator`: receives the first requisition queue, forwards to the next role, and can print the final requisition letter after completion.
+- `Assistant Director`: first verification/review step for requisitions.
+- `Deputy Director`: second verification/review step for requisitions.
+- `Director`: final approval step for requisitions.

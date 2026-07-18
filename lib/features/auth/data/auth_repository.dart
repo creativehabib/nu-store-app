@@ -21,7 +21,7 @@ class AuthRepository {
     final response = await _apiClient.dio.post(
       ApiRoutes.login,
       data: {
-        'email': email,
+        'login': email,
         'password': password,
         if (twoFactorCode != null) 'two_factor_code': twoFactorCode,
       },
