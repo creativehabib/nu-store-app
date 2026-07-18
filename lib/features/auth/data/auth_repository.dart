@@ -14,15 +14,18 @@ class AuthRepository {
   }
 
   Future<Map<String, dynamic>> login({
-    required String email,
+    required String login,
     required String password,
     String? twoFactorCode,
   }) async {
+    final isEmail = login.contains('@');
     final response = await _apiClient.dio.post(
       ApiRoutes.login,
       data: {
-        'login': email,
+        'login': login,
+        if (isEmail) 'email': login else 'pf_no': login,
         'password': password,
+        'device_name': 'NU Store Mobile',
         if (twoFactorCode != null) 'two_factor_code': twoFactorCode,
       },
     );

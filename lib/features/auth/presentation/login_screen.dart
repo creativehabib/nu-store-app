@@ -12,20 +12,20 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
   final _twoFactorController = TextEditingController();
   bool _isPasswordVisible = false;
 
   Future<void> _handleLogin() async {
-    final email = _emailController.text.trim();
+    final login = _loginController.text.trim();
     final password = _passwordController.text.trim();
     final twoFactorCode = _twoFactorController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    if (login.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter email and password.'),
+          content: Text('Please enter email/PF No and password.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -33,7 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     await ref.read(authControllerProvider.notifier).login(
-          email,
+          login,
           password,
           twoFactorCode: twoFactorCode.isEmpty ? null : twoFactorCode,
         );
@@ -53,7 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _loginController.dispose();
     _passwordController.dispose();
     _twoFactorController.dispose();
     super.dispose();
@@ -75,7 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: 8),
               const Text('Sign in with Laravel Sanctum/Passport API token validation.'),
               const SizedBox(height: 32),
-              TextField(controller: _emailController, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'PF No / Email Address', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder())),
+              TextField(controller: _loginController, keyboardType: TextInputType.text, decoration: const InputDecoration(labelText: 'Email Address or PF No', hintText: 'example@nu.ac.bd or PF12345', prefixIcon: Icon(Icons.badge_outlined), border: OutlineInputBorder())),
               const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,

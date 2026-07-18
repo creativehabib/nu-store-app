@@ -36,7 +36,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isInitialized: true, clearError: true);
   }
 
-  Future<void> login(String email, String password, {String? twoFactorCode}) async {
+  Future<void> login(String login, String password, {String? twoFactorCode}) async {
     state = state.copyWith(
       isLoading: true,
       isInitialized: true,
@@ -45,15 +45,25 @@ class AuthController extends StateNotifier<AuthState> {
       clearError: true,
       clearSession: true,
     );
+    await _repository.clearSession();
     try {
       final payload = await _repository.login(
-        email: email,
+        login: login,
         password: password,
         twoFactorCode: twoFactorCode,
       );
+      if (payload['success'] == false || payload['status'] == false) {
+        throw Exception(payload['message'] ?? 'Invalid login credentials.');
+      }
       final data = Map<String, dynamic>.from((payload['data'] as Map?) ?? payload);
+      if (data['success'] == false || data['status'] == false) {
+        throw Exception(data['message'] ?? 'Invalid login credentials.');
+      }
       final requiresTwoFactor = data['two_factor_required'] == true;
       final token = data['token'] as String?;
+      if ((token == null || token.isEmpty) && !requiresTwoFactor) {
+        throw Exception('Login response did not include an access token.');
+      }
       final user = Map<String, dynamic>.from((data['user'] as Map?) ?? {});
       final isApproved = _isApproved(user);
 

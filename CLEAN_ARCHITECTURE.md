@@ -52,7 +52,7 @@ lib/
 The scaffold points to `https://store.creativehabib.com` by default and expects these Laravel endpoints under `/api/v1`:
 
 - `POST /auth/register` for new API user registration.
-- `POST /auth/login` with `login`, `password`, and optional `device_name`, returning nested `data.token` and `data.user`.
+- `POST /auth/login` with `login`, `password`, `device_name`, and either `email` or `pf_no` derived from the entered identifier, returning nested `data.token` and `data.user`.
 - `GET /auth/me` for token validation and profile refresh.
 - `POST /auth/logout` for server-side token revocation.
 - `GET /inventory` for inventory rows used to derive current and low-stock counts.

@@ -12,10 +12,13 @@ class ApiService {
     return _apiClient.dio.post(ApiRoutes.register, data: data);
   }
 
-  Future<Response<dynamic>> login(String email, String password) {
+  Future<Response<dynamic>> login(String login, String password) {
+    final isEmail = login.contains('@');
     return _apiClient.dio.post(ApiRoutes.login, data: {
-      'login': email,
+      'login': login,
+      if (isEmail) 'email': login else 'pf_no': login,
       'password': password,
+      'device_name': 'NU Store Mobile',
     });
   }
 
