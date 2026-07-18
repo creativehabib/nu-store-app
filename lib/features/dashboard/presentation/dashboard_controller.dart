@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../shared/providers/core_providers.dart';
 import '../data/dashboard_repository.dart';
