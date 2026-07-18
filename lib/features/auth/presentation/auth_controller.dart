@@ -37,7 +37,14 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> login(String email, String password, {String? twoFactorCode}) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      isInitialized: true,
+      requiresTwoFactor: false,
+      isApproved: false,
+      clearError: true,
+      clearSession: true,
+    );
     try {
       final payload = await _repository.login(
         email: email,
@@ -62,9 +69,12 @@ class AuthController extends StateNotifier<AuthState> {
         isApproved: isApproved,
       );
     } catch (error) {
+      await _repository.clearSession();
       state = state.copyWith(
         isLoading: false,
         isInitialized: true,
+        isApproved: false,
+        clearSession: true,
         errorMessage: 'Login failed. Please verify credentials, 2FA, or approval status.',
       );
     }

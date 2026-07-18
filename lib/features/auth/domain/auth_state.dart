@@ -28,10 +28,11 @@ class AuthState {
     bool? isApproved,
     String? errorMessage,
     bool clearError = false,
+    bool clearSession = false,
   }) {
     return AuthState(
-      token: token ?? this.token,
-      user: user ?? this.user,
+      token: clearSession ? null : token ?? this.token,
+      user: clearSession ? null : user ?? this.user,
       isLoading: isLoading ?? this.isLoading,
       isInitialized: isInitialized ?? this.isInitialized,
       requiresTwoFactor: requiresTwoFactor ?? this.requiresTwoFactor,

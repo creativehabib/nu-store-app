@@ -18,10 +18,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isPasswordVisible = false;
 
   Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final twoFactorCode = _twoFactorController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter email and password.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     await ref.read(authControllerProvider.notifier).login(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-          twoFactorCode: _twoFactorController.text.trim().isEmpty ? null : _twoFactorController.text.trim(),
+          email,
+          password,
+          twoFactorCode: twoFactorCode.isEmpty ? null : twoFactorCode,
         );
 
     final state = ref.read(authControllerProvider);
