@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_routes.dart';
 import '../../../shared/providers/core_providers.dart';
-import '../presentation/auth_controller.dart';
+import 'auth_controller.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -84,7 +84,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Widget _dropdown(String label, int? value, AsyncValue<List<Map<String, dynamic>>> rows, ValueChanged<int?> onChanged) {
-    final options = rows.valueOrNull ?? const <Map<String, dynamic>>[];
+    final options = rows.when(
+      data: (items) => items,
+      loading: () => const <Map<String, dynamic>>[],
+      error: (_, _) => const <Map<String, dynamic>>[],
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DropdownButtonFormField<int>(
