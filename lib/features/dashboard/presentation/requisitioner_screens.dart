@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../core/network/api_routes.dart';
 import '../../../shared/providers/core_providers.dart';
 import '../../auth/presentation/auth_controller.dart';
+import 'requisition_details_screen.dart';
+import 'requisition_workflow_settings.dart';
 
 const _processingStatuses = {
   'pending',
@@ -50,40 +52,6 @@ final purposesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   return _rows(response.data);
 });
 
-
-final appSettingsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.settings);
-  final data = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : <String, dynamic>{};
-  final payload = data['data'];
-  return payload is Map ? Map<String, dynamic>.from(payload) : data;
-});
-
-class RequisitionWorkflowSettings {
-  const RequisitionWorkflowSettings({
-    required this.storeMode,
-    required this.centralStoreDepartmentId,
-    required this.approvalFlowRoles,
-    required this.showPrintFooter,
-  });
-
-  final String storeMode;
-  final int centralStoreDepartmentId;
-  final List<String> approvalFlowRoles;
-  final bool showPrintFooter;
-
-  bool get isCentralized => storeMode == 'centralized';
-
-  static RequisitionWorkflowSettings fromSettings(Map<String, dynamic> settings) {
-    final requisition = settings['requisition'] is Map ? Map<String, dynamic>.from(settings['requisition'] as Map) : <String, dynamic>{};
-    final roles = requisition['approval_flow_roles'];
-    return RequisitionWorkflowSettings(
-      storeMode: '${requisition['store_mode'] ?? 'departmental'}'.toLowerCase(),
-      centralStoreDepartmentId: _intFrom(requisition['central_store_dept_id']),
-      approvalFlowRoles: roles is List ? roles.map((role) => '$role').toList() : const ['assistant_director', 'deputy_director', 'director'],
-      showPrintFooter: _boolFrom(requisition['show_print_footer'], fallback: true),
-    );
-  }
-}
 
 class RequisitionerDashboard extends ConsumerWidget {
   const RequisitionerDashboard({super.key});
@@ -835,28 +803,6 @@ class _WorkflowStep {
   final String hint;
 }
 
-class _HistoryDialog extends StatelessWidget {
-  const _HistoryDialog({required this.row});
-  final Map<String, dynamic> row;
-  @override
-  Widget build(BuildContext context) {
-    final history = _history(row);
-    final items = _rows(row['items'] ?? row['requisition_items']);
-    return AlertDialog(
-      title: Text('Tracking Details: ${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}'),
-      content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Submitted on ${_date(row['created_at'])}'),
-        const Divider(height: 28),
-        const Text('Item Details & Approval:', style: TextStyle(fontWeight: FontWeight.bold)),
-        DataTable(columns: const [DataColumn(label: Text('Item Name')), DataColumn(label: Text('You Requested')), DataColumn(label: Text('Approved Quantity'))], rows: [for (final item in items.isEmpty ? [row] : items) DataRow(cells: [DataCell(Text(_productName(item))), DataCell(Text('${item['demanded_qty'] ?? item['qty'] ?? '-'}')), DataCell(Text('${item['supplied_qty'] ?? item['approved_qty'] ?? 0}'))])]),
-        const SizedBox(height: 16),
-        const Text('Approval History (Timeline):', style: TextStyle(fontWeight: FontWeight.bold)),
-        for (final h in history) ListTile(leading: const Icon(Icons.circle, color: Colors.green, size: 14), title: Text('${h['name'] ?? h['role'] ?? 'Approver'}'), subtitle: Text('${h['comment'] ?? h['remarks'] ?? ''}\n${_date(h['created_at'] ?? h['date'])}'), trailing: Chip(label: Text('${h['status'] ?? 'Approved / Forwarded'}'))),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
-    );
-  }
-}
 
 class _StatsGrid extends StatelessWidget { const _StatsGrid({required this.stats}); final Map<String,int> stats; @override Widget build(BuildContext context) => GridView.count(crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 2.2, children: [_Card('Total Submitted Requests', stats['total'] ?? 0, Colors.blue, Icons.description_outlined), _Card('Processing (Pending)', stats['processing'] ?? 0, Colors.orange, Icons.schedule), _Card('Completed (Distributed)', stats['completed'] ?? 0, Colors.green, Icons.check_circle_outline), _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply)]); }
 class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withOpacity(.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withOpacity(.45), size: 34)]))); }
@@ -1103,17 +1049,6 @@ int? _userDepartmentId(Map<String, dynamic>? user) {
   return parsed == 0 ? null : parsed;
 }
 
-bool _boolFrom(dynamic value, {bool fallback = false}) {
-  if (value is bool) return value;
-  if (value is num) return value != 0;
-  if (value is String) {
-    final normalized = value.trim().toLowerCase();
-    if (['1', 'true', 'yes', 'on', 'enabled'].contains(normalized)) return true;
-    if (['0', 'false', 'no', 'off', 'disabled'].contains(normalized)) return false;
-  }
-  return fallback;
-}
-
 List<String> _approvalRoleLabels(List<String> roles) {
   final labels = <String>[];
   for (final role in roles) {
@@ -1124,36 +1059,9 @@ List<String> _approvalRoleLabels(List<String> roles) {
   return labels;
 }
 
-List<_WorkflowStep> _workflowSteps(RequisitionWorkflowSettings settings, int? requesterDepartmentId) {
-  final isCentralRequester = settings.isCentralized && requesterDepartmentId == settings.centralStoreDepartmentId;
-  final steps = <_WorkflowStep>[
-    if (settings.isCentralized && !isCentralRequester)
-      const _WorkflowStep({'department_director_review', 'pending_dept_director'}, 'Department Director Review', 'নিজ department director requisition review করবেন.'),
-    const _WorkflowStep({'pending'}, 'Initiator / Store Queue', 'Departmental হলে নিজ department initiator; centralized হলে central store initiator queue.'),
-  ];
-  for (final role in _approvalRoleLabels(settings.approvalFlowRoles)) {
-    if (role == 'Assistant Director') {
-      steps.add(const _WorkflowStep({'initiator_checked'}, 'Assistant Director Approval', 'Initiator যাচাইয়ের পর AD approval step.'));
-    } else if (role == 'Deputy Director') {
-      steps.add(const _WorkflowStep({'ad_approved'}, 'Deputy Director Approval', 'Configured approval flow অনুযায়ী DD review.'));
-    } else if (role == 'Director') {
-      steps.add(const _WorkflowStep({'dd_approved', 'director_approved'}, 'Director Final Approval', 'Director final approver হিসেবে requisition approve করবেন.'));
-    }
-  }
-  steps.add(const _WorkflowStep({'distributed'}, 'Distributed', 'Store requisition issue/distribute সম্পন্ন করবে.'));
-  return steps;
-}
-
-int _activeStepIndex(List<_WorkflowStep> steps, String status) {
-  if (status == 'returned') return 0;
-  final index = steps.indexWhere((step) => step.statuses.contains(status));
-  return index < 0 ? 0 : index;
-}
-
 List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
 int _intFrom(dynamic v)=> v is num ? v.toInt() : int.tryParse('$v') ?? 0;
 Map<String,int> _statsFromRows(List<Map<String,dynamic>> rows)=> {'total': rows.length, 'processing': rows.where((r)=>_processingStatuses.contains('${r['status']}'.toLowerCase())).length, 'completed': rows.where((r)=>'${r['status']}'.toLowerCase()=='distributed').length, 'returned': rows.where((r)=>'${r['status']}'.toLowerCase()=='returned').length};
 String _date(dynamic value){ final d=DateTime.tryParse('$value'); return d==null ? '-' : DateFormat('dd MMM, yyyy hh:mm a').format(d.toLocal()); }
 String _itemSummary(Map<String,dynamic> r){ final items=_rows(r['items'] ?? r['requisition_items']); if(items.isEmpty) return _productName(r); return items.map(_productName).take(2).join(', '); }
 String _productName(Map<String,dynamic> r){ final p=r['product']; if(p is Map) return '${p['name'] ?? p['name_en'] ?? p['title'] ?? 'Item'}'; return '${r['product_name'] ?? r['item_name'] ?? r['name'] ?? 'Item'}'; }
-List<Map<String,dynamic>> _history(Map<String,dynamic> r){ final h=r['approval_history']; if(h is List) return h.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return [{'role':'Submitted','status':r['status'] ?? 'Pending','created_at':r['created_at']}]; }

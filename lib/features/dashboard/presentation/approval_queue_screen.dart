@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_routes.dart';
 import '../../../shared/providers/core_providers.dart';
 import 'requisitioner_screens.dart';
+import 'requisition_details_screen.dart';
+import 'requisition_workflow_settings.dart';
 
 final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, queue) async {
   final response = await ref.watch(apiClientProvider).dio.get(
