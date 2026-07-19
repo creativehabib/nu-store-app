@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart'; // LoginScreen ইম্পোর্ট করা হলো
+import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/register_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -67,9 +68,25 @@ class HomeScreen extends StatelessWidget {
                       elevation: 0,
                     ),
                     child: const Text(
-                      'Go to Login',
+                      'Login',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Create new account'),
                   ),
                 ),
               ],
