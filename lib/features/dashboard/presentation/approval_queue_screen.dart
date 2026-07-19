@@ -9,11 +9,29 @@ import 'requisition_details_screen.dart';
 import 'requisition_workflow_settings.dart';
 
 final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, queue) async {
-  final response = await ref.watch(apiClientProvider).dio.get(
-    ApiRoutes.requisitions,
-    queryParameters: {'queue': queue, 'status': _queueStatus(queue), 'per_page': 25},
-  );
-  return _queueRows(response.data);
+  final dio = ref.watch(apiClientProvider).dio;
+  final status = _queueStatus(queue);
+  final attempts = <_HttpAttempt>[
+    _HttpAttempt('GET', '${ApiRoutes.requisitionWorkflow}/queue/$queue'),
+    _HttpAttempt('GET', '${ApiRoutes.workflowRequisitions}/queue/$queue'),
+    _HttpAttempt('GET', '${ApiRoutes.requisitions}/workflow/queue/$queue'),
+    _HttpAttempt('GET', ApiRoutes.requisitions),
+  ];
+
+  for (final attempt in attempts) {
+    try {
+      final response = await dio.get(
+        attempt.path,
+        queryParameters: {'queue': queue, 'status': status, 'per_page': 25},
+      );
+      return _queueRows(response.data);
+    } on DioException catch (error) {
+      if (_shouldTryNextRoute(error)) continue;
+      rethrow;
+    }
+  }
+
+  return const [];
 });
 
 class RequisitionApprovalQueueScreen extends ConsumerWidget {
@@ -106,19 +124,30 @@ class _ApprovalQueueCardState extends ConsumerState<_ApprovalQueueCard> {
             decoration: const InputDecoration(labelText: 'Remarks / note', border: OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _queueInt(widget.row['id']), fallback: widget.row))),
-              icon: const Icon(Icons.visibility_outlined),
-              label: const Text('View'),
-            ),
-            const Spacer(),
-            FilledButton.icon(
-              onPressed: _submitting ? null : () => _submit(action),
-              icon: const Icon(Icons.send_outlined),
-              label: Text(_submitting ? 'Forwarding...' : action.buttonLabel),
-            ),
-          ]),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RequisitionDetailsScreen(
+                      id: _queueInt(widget.row['id']),
+                      fallback: widget.row,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('View'),
+              ),
+              FilledButton.icon(
+                onPressed: _submitting ? null : () => _submit(action),
+                icon: const Icon(Icons.send_outlined),
+                label: Text(_submitting ? 'Forwarding...' : action.buttonLabel),
+              ),
+            ],
+          ),
         ]),
       ),
     );
@@ -140,10 +169,10 @@ class _ApprovalQueueCardState extends ConsumerState<_ApprovalQueueCard> {
       ref.invalidate(requisitionQueueProvider(widget.queue));
       ref.invalidate(myRequisitionsProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${action.buttonLabel} successful'), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${action.buttonLabel} successful'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_actionErrorMessage(error)), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_actionErrorMessage(error), maxLines: 3, overflow: TextOverflow.ellipsis), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -223,13 +252,27 @@ Future<void> _sendRequisitionAction(
   final dio = ref.read(apiClientProvider).dio;
   final payload = {
     'action': action,
+    'decision': action,
     'status': nextStatus,
     'next_status': nextStatus,
-    if (nextRole != null) 'next_role': nextRole,
-    if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
+    if (nextRole != null) ...{
+      'next_role': nextRole,
+      'next_approver_role': nextRole,
+      'role': nextRole,
+    },
+    if (remarks != null && remarks.isNotEmpty) ...{
+      'remarks': remarks,
+      'comment': remarks,
+      'note': remarks,
+    },
   };
 
   final attempts = <_HttpAttempt>[
+    _HttpAttempt('POST', '${ApiRoutes.requisitionWorkflow}/$id/$action'),
+    _HttpAttempt('POST', '${ApiRoutes.requisitionWorkflow}/requisitions/$id/$action'),
+    _HttpAttempt('POST', '${ApiRoutes.workflowRequisitions}/$id/$action'),
+    _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/workflow/$action'),
+    _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/actions/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/$action'),
     _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id'),
     _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id'),
@@ -247,15 +290,18 @@ Future<void> _sendRequisitionAction(
       }
       return;
     } on DioException catch (error) {
-      final statusCode = error.response?.statusCode;
-      if (statusCode == 404 || statusCode == 405) continue;
+      if (_shouldTryNextRoute(error)) continue;
       rethrow;
     }
   }
 
-  throw UnsupportedError(
-    'Forward/approval endpoint পাওয়া যায়নি। Backend-এ requisition action route expose করতে হবে: POST ${ApiRoutes.requisitions}/:id/$action অথবা PATCH/PUT ${ApiRoutes.requisitions}/:id।',
-  );
+  throw UnsupportedError('Workflow action API পাওয়া যায়নি। অনুগ্রহ করে অ্যাপ আপডেট/রিফ্রেশ করে আবার চেষ্টা করুন।');
+}
+
+
+bool _shouldTryNextRoute(DioException error) {
+  final statusCode = error.response?.statusCode;
+  return statusCode == 404 || statusCode == 405;
 }
 
 String _actionErrorMessage(Object error) {
@@ -268,7 +314,7 @@ String _actionErrorMessage(Object error) {
     }
     if (error.response?.statusCode == 403) return 'আপনার এই requisition action করার permission নেই।';
     if (error.response?.statusCode == 422) return 'Forward করার তথ্য সঠিক নয়। Remarks/approval data যাচাই করুন।';
-    if (error.response?.statusCode == 404) return 'এই requisition action endpoint পাওয়া যায়নি। Backend API route enable করা প্রয়োজন।';
+    if (error.response?.statusCode == 404) return 'Workflow action API পাওয়া যায়নি। অ্যাপটি রিফ্রেশ করে আবার চেষ্টা করুন।';
   }
   return 'Requisition action সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
 }
