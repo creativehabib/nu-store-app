@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../core/network/api_routes.dart';
 import '../../../shared/providers/core_providers.dart';
+import '../../auth/presentation/auth_controller.dart';
+import 'requisition_details_screen.dart';
+import 'requisition_workflow_settings.dart';
 
 const _processingStatuses = {
   'pending',
@@ -29,7 +32,7 @@ final requisitionerDashboardProvider = FutureProvider<Map<String, int>>((ref) as
 });
 
 final myRequisitionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions);
+  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions, queryParameters: {'mine': 1, 'per_page': 25});
   return _rows(response.data);
 });
 
@@ -48,18 +51,28 @@ final purposesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   return _rows(response.data);
 });
 
+
 class RequisitionerDashboard extends ConsumerWidget {
   const RequisitionerDashboard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(requisitionerDashboardProvider);
+    final settings = ref.watch(appSettingsProvider);
     return RefreshIndicator(
-      onRefresh: () => ref.refresh(requisitionerDashboardProvider.future),
+      onRefresh: () async {
+        await ref.refresh(requisitionerDashboardProvider.future);
+      },
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Text('Requisitioner Dashboard', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          settings.when(
+            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value)),
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const _ErrorCard(message: 'Settings load failed. Default departmental workflow will be used for UI hints.'),
+          ),
           const SizedBox(height: 16),
           stats.when(
             data: (value) => _StatsGrid(stats: value),
@@ -88,12 +101,20 @@ class _SubmitDemandScreenState extends ConsumerState<SubmitDemandScreen> {
     final categories = ref.watch(categoriesProvider);
     final products = ref.watch(productsProvider);
     final purposes = ref.watch(purposesProvider);
+    final settings = ref.watch(appSettingsProvider);
+    final user = ref.watch(authControllerProvider).user;
     return Scaffold(
       appBar: AppBar(title: const Text('Submit Demand')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Text('Submit New Demand', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          settings.when(
+            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value), requesterDepartmentId: _userDepartmentId(user)),
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const _ErrorCard(message: 'Could not load workflow settings. You can still submit; backend will route it.'),
+          ),
           const Divider(height: 28),
           Card(
             child: Padding(
@@ -168,7 +189,9 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('My Requisitions')),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(myRequisitionsProvider.future),
+        onRefresh: () async {
+          await ref.refresh(myRequisitionsProvider.future);
+        },
         child: reqs.when(
           data: (items) => _buildList(context, items),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -211,35 +234,13 @@ class _RequisitionTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold)),
     subtitle: Text('${_date(row['created_at'])}\n${_itemSummary(row)}'),
-    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('View History'), onPressed: () => showDialog(context: context, builder: (_) => _HistoryDialog(row: row))),
+    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('Details'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _intFrom(row['id']), fallback: row)))),
   );
 }
 
-class _HistoryDialog extends StatelessWidget {
-  const _HistoryDialog({required this.row});
-  final Map<String, dynamic> row;
-  @override
-  Widget build(BuildContext context) {
-    final history = _history(row);
-    final items = _rows(row['items'] ?? row['requisition_items']);
-    return AlertDialog(
-      title: Text('Tracking Details: ${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}'),
-      content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Submitted on ${_date(row['created_at'])}'),
-        const Divider(height: 28),
-        const Text('Item Details & Approval:', style: TextStyle(fontWeight: FontWeight.bold)),
-        DataTable(columns: const [DataColumn(label: Text('Item Name')), DataColumn(label: Text('You Requested')), DataColumn(label: Text('Approved Quantity'))], rows: [for (final item in items.isEmpty ? [row] : items) DataRow(cells: [DataCell(Text(_productName(item))), DataCell(Text('${item['demanded_qty'] ?? item['qty'] ?? '-'}')), DataCell(Text('${item['supplied_qty'] ?? item['approved_qty'] ?? 0}'))])]),
-        const SizedBox(height: 16),
-        const Text('Approval History (Timeline):', style: TextStyle(fontWeight: FontWeight.bold)),
-        for (final h in history) ListTile(leading: const Icon(Icons.circle, color: Colors.green, size: 14), title: Text('${h['name'] ?? h['role'] ?? 'Approver'}'), subtitle: Text('${h['comment'] ?? h['remarks'] ?? ''}\n${_date(h['created_at'] ?? h['date'])}'), trailing: Chip(label: Text('${h['status'] ?? 'Approved / Forwarded'}'))),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
-    );
-  }
-}
 
 class _StatsGrid extends StatelessWidget { const _StatsGrid({required this.stats}); final Map<String,int> stats; @override Widget build(BuildContext context) => GridView.count(crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 2.2, children: [_Card('Total Submitted Requests', stats['total'] ?? 0, Colors.blue, Icons.description_outlined), _Card('Processing (Pending)', stats['processing'] ?? 0, Colors.orange, Icons.schedule), _Card('Completed (Distributed)', stats['completed'] ?? 0, Colors.green, Icons.check_circle_outline), _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply)]); }
-class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withValues(alpha:.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withValues(alpha:.45), size: 34)]))); }
+class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withOpacity(.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withOpacity(.45), size: 34)]))); }
 class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.message}); final String message; @override Widget build(BuildContext context)=>Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red)))); }
 class _DemandLine {
   int? categoryId;
@@ -465,10 +466,37 @@ List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> val
   );
 }
 
+
+
+String _roleLabel(String role) {
+  if (role == 'assistant_director') return 'Assistant Director';
+  if (role == 'deputy_director') return 'Deputy Director';
+  if (role == 'director') return 'Director';
+  return role.replaceAll('_', ' ');
+}
+
+int? _userDepartmentId(Map<String, dynamic>? user) {
+  if (user == null) return null;
+  final department = user['department'];
+  if (department is Map) return _intFrom(department['id']);
+  final value = user['department_id'] ?? user['dept_id'];
+  final parsed = _intFrom(value);
+  return parsed == 0 ? null : parsed;
+}
+
+List<String> _approvalRoleLabels(List<String> roles) {
+  final labels = <String>[];
+  for (final role in roles) {
+    final label = _roleLabel(role);
+    if (!labels.contains(label)) labels.add(label);
+  }
+  if (!labels.contains('Director')) labels.add('Director');
+  return labels;
+}
+
 List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
 int _intFrom(dynamic v)=> v is num ? v.toInt() : int.tryParse('$v') ?? 0;
 Map<String,int> _statsFromRows(List<Map<String,dynamic>> rows)=> {'total': rows.length, 'processing': rows.where((r)=>_processingStatuses.contains('${r['status']}'.toLowerCase())).length, 'completed': rows.where((r)=>'${r['status']}'.toLowerCase()=='distributed').length, 'returned': rows.where((r)=>'${r['status']}'.toLowerCase()=='returned').length};
 String _date(dynamic value){ final d=DateTime.tryParse('$value'); return d==null ? '-' : DateFormat('dd MMM, yyyy hh:mm a').format(d.toLocal()); }
 String _itemSummary(Map<String,dynamic> r){ final items=_rows(r['items'] ?? r['requisition_items']); if(items.isEmpty) return _productName(r); return items.map(_productName).take(2).join(', '); }
 String _productName(Map<String,dynamic> r){ final p=r['product']; if(p is Map) return '${p['name'] ?? p['name_en'] ?? p['title'] ?? 'Item'}'; return '${r['product_name'] ?? r['item_name'] ?? r['name'] ?? 'Item'}'; }
-List<Map<String,dynamic>> _history(Map<String,dynamic> r){ final h=r['approval_history']; if(h is List) return h.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return [{'role':'Submitted','status':r['status'] ?? 'Pending','created_at':r['created_at']}]; }
