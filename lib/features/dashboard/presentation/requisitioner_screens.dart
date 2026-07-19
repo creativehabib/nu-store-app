@@ -29,7 +29,7 @@ final requisitionerDashboardProvider = FutureProvider<Map<String, int>>((ref) as
 });
 
 final myRequisitionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions);
+  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions, queryParameters: {'mine': 1, 'per_page': 25});
   return _rows(response.data);
 });
 
@@ -211,8 +211,65 @@ class _RequisitionTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold)),
     subtitle: Text('${_date(row['created_at'])}\n${_itemSummary(row)}'),
-    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('View History'), onPressed: () => showDialog(context: context, builder: (_) => _HistoryDialog(row: row))),
+    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('Details'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _intFrom(row['id']), fallback: row)))),
   );
+}
+
+
+final requisitionDetailProvider = FutureProvider.family<Map<String, dynamic>, int>((ref, id) async {
+  final response = await ref.watch(apiClientProvider).dio.get('${ApiRoutes.requisitions}/$id');
+  final data = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : <String, dynamic>{};
+  final payload = data['data'];
+  return payload is Map ? Map<String, dynamic>.from(payload) : data;
+});
+
+class RequisitionDetailsScreen extends ConsumerWidget {
+  const RequisitionDetailsScreen({super.key, required this.id, required this.fallback});
+
+  final int id;
+  final Map<String, dynamic> fallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = id == 0 ? AsyncData(fallback) : ref.watch(requisitionDetailProvider(id));
+    return Scaffold(
+      appBar: AppBar(title: Text('${fallback['requisition_no'] ?? 'Requisition Details'}')),
+      body: details.when(
+        data: (row) => ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            _StatusHeader(row: row),
+            const SizedBox(height: 16),
+            _HistoryDialog(row: row),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => ListView(padding: const EdgeInsets.all(24), children: [_ErrorCard(message: '$error')]),
+      ),
+    );
+  }
+}
+
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            Chip(label: Text('Status: ${row['status'] ?? 'pending'}')),
+            Chip(label: Text('Submitted: ${_date(row['created_at'])}')),
+          ]),
+        ]),
+      ),
+    );
+  }
 }
 
 class _HistoryDialog extends StatelessWidget {
