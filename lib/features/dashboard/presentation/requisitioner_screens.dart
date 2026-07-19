@@ -1,9 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/network/api_routes.dart';
 import '../../../shared/providers/core_providers.dart';
+import '../../auth/presentation/auth_controller.dart';
 
 const _processingStatuses = {
   'pending',
@@ -29,7 +31,7 @@ final requisitionerDashboardProvider = FutureProvider<Map<String, int>>((ref) as
 });
 
 final myRequisitionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions);
+  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions, queryParameters: {'mine': 1, 'per_page': 25});
   return _rows(response.data);
 });
 
@@ -48,18 +50,60 @@ final purposesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   return _rows(response.data);
 });
 
+
+final appSettingsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.settings);
+  final data = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : <String, dynamic>{};
+  final payload = data['data'];
+  return payload is Map ? Map<String, dynamic>.from(payload) : data;
+});
+
+class RequisitionWorkflowSettings {
+  const RequisitionWorkflowSettings({
+    required this.storeMode,
+    required this.centralStoreDepartmentId,
+    required this.approvalFlowRoles,
+    required this.showPrintFooter,
+  });
+
+  final String storeMode;
+  final int centralStoreDepartmentId;
+  final List<String> approvalFlowRoles;
+  final bool showPrintFooter;
+
+  bool get isCentralized => storeMode == 'centralized';
+
+  static RequisitionWorkflowSettings fromSettings(Map<String, dynamic> settings) {
+    final requisition = settings['requisition'] is Map ? Map<String, dynamic>.from(settings['requisition'] as Map) : <String, dynamic>{};
+    final roles = requisition['approval_flow_roles'];
+    return RequisitionWorkflowSettings(
+      storeMode: '${requisition['store_mode'] ?? 'departmental'}'.toLowerCase(),
+      centralStoreDepartmentId: _intFrom(requisition['central_store_dept_id']),
+      approvalFlowRoles: roles is List ? roles.map((role) => '$role').toList() : const ['assistant_director', 'deputy_director', 'director'],
+      showPrintFooter: _boolFrom(requisition['show_print_footer'], fallback: true),
+    );
+  }
+}
+
 class RequisitionerDashboard extends ConsumerWidget {
   const RequisitionerDashboard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(requisitionerDashboardProvider);
+    final settings = ref.watch(appSettingsProvider);
     return RefreshIndicator(
       onRefresh: () => ref.refresh(requisitionerDashboardProvider.future),
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Text('Requisitioner Dashboard', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          settings.when(
+            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value)),
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const _ErrorCard(message: 'Settings load failed. Default departmental workflow will be used for UI hints.'),
+          ),
           const SizedBox(height: 16),
           stats.when(
             data: (value) => _StatsGrid(stats: value),
@@ -88,12 +132,20 @@ class _SubmitDemandScreenState extends ConsumerState<SubmitDemandScreen> {
     final categories = ref.watch(categoriesProvider);
     final products = ref.watch(productsProvider);
     final purposes = ref.watch(purposesProvider);
+    final settings = ref.watch(appSettingsProvider);
+    final user = ref.watch(authControllerProvider).user;
     return Scaffold(
       appBar: AppBar(title: const Text('Submit Demand')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Text('Submit New Demand', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          settings.when(
+            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value), requesterDepartmentId: _userDepartmentId(user)),
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => const _ErrorCard(message: 'Could not load workflow settings. You can still submit; backend will route it.'),
+          ),
           const Divider(height: 28),
           Card(
             child: Padding(
@@ -211,8 +263,302 @@ class _RequisitionTile extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold)),
     subtitle: Text('${_date(row['created_at'])}\n${_itemSummary(row)}'),
-    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('View History'), onPressed: () => showDialog(context: context, builder: (_) => _HistoryDialog(row: row))),
+    trailing: FilledButton.tonalIcon(icon: const Icon(Icons.history), label: const Text('Details'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _intFrom(row['id']), fallback: row)))),
   );
+}
+
+
+final requisitionDetailProvider = FutureProvider.family<Map<String, dynamic>, int>((ref, id) async {
+  final response = await ref.watch(apiClientProvider).dio.get('${ApiRoutes.requisitions}/$id');
+  final data = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : <String, dynamic>{};
+  final payload = data['data'];
+  return payload is Map ? Map<String, dynamic>.from(payload) : data;
+});
+
+
+final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, queue) async {
+  final response = await ref.watch(apiClientProvider).dio.get(
+    ApiRoutes.requisitions,
+    queryParameters: {'queue': queue, 'status': _queueStatus(queue), 'per_page': 25},
+  );
+  return _rows(response.data);
+});
+
+
+class RequisitionApprovalQueueScreen extends ConsumerWidget {
+  const RequisitionApprovalQueueScreen({super.key, required this.title, required this.queue});
+
+  final String title;
+  final String queue;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(requisitionQueueProvider(queue));
+    final settings = ref.watch(appSettingsProvider);
+    final workflowSettings = settings.when(
+      data: (value) => value,
+      loading: () => const <String, dynamic>{},
+      error: (_, _) => const <String, dynamic>{},
+    );
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(requisitionQueueProvider(queue).future),
+        child: items.when(
+          data: (rows) {
+            if (rows.isEmpty) {
+              return ListView(padding: const EdgeInsets.all(24), children: const [Center(child: Text('No pending requisitions found.'))]);
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: rows.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) => _ApprovalQueueCard(
+                row: rows[index],
+                queue: queue,
+                settings: workflowSettings,
+              ),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => ListView(padding: const EdgeInsets.all(24), children: [_ErrorCard(message: '$error')]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ApprovalQueueCard extends ConsumerStatefulWidget {
+  const _ApprovalQueueCard({required this.row, required this.queue, required this.settings});
+
+  final Map<String, dynamic> row;
+  final String queue;
+  final Map<String, dynamic>? settings;
+
+  @override
+  ConsumerState<_ApprovalQueueCard> createState() => _ApprovalQueueCardState();
+}
+
+class _ApprovalQueueCardState extends ConsumerState<_ApprovalQueueCard> {
+  final _remarksController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _remarksController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = RequisitionWorkflowSettings.fromSettings(widget.settings ?? const {});
+    final action = _queueAction(widget.queue, settings);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text('${widget.row['requisition_no'] ?? 'REQ-${widget.row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+            Chip(label: Text('${widget.row['status'] ?? _queueStatus(widget.queue)}')),
+          ]),
+          const SizedBox(height: 8),
+          Text(_itemSummary(widget.row)),
+          const SizedBox(height: 8),
+          Text('Next: ${action.nextLabel}', style: const TextStyle(color: Colors.black54)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _remarksController,
+            minLines: 1,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Remarks / note', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _intFrom(widget.row['id']), fallback: widget.row))),
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('View'),
+            ),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _submitting ? null : () => _submit(action),
+              icon: const Icon(Icons.send_outlined),
+              label: Text(_submitting ? 'Forwarding...' : action.buttonLabel),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _submit(_QueueAction action) async {
+    final id = _intFrom(widget.row['id']);
+    if (id == 0) return;
+    setState(() => _submitting = true);
+    try {
+      await _sendRequisitionAction(
+        ref,
+        id: id,
+        action: action.action,
+        nextRole: action.nextRole,
+        nextStatus: action.nextStatus,
+        remarks: _remarksController.text.trim(),
+      );
+      ref.invalidate(requisitionQueueProvider(widget.queue));
+      ref.invalidate(myRequisitionsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${action.buttonLabel} successful'), backgroundColor: Colors.green));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_actionErrorMessage(error)), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+}
+
+class _QueueAction {
+  const _QueueAction({required this.action, required this.buttonLabel, required this.nextLabel, required this.nextStatus, this.nextRole});
+
+  final String action;
+  final String buttonLabel;
+  final String nextLabel;
+  final String nextStatus;
+  final String? nextRole;
+}
+
+class RequisitionDetailsScreen extends ConsumerWidget {
+  const RequisitionDetailsScreen({super.key, required this.id, required this.fallback});
+
+  final int id;
+  final Map<String, dynamic> fallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = id == 0 ? AsyncData(fallback) : ref.watch(requisitionDetailProvider(id));
+    final settings = ref.watch(appSettingsProvider);
+    return Scaffold(
+      appBar: AppBar(title: Text('${fallback['requisition_no'] ?? 'Requisition Details'}')),
+      body: details.when(
+        data: (row) => ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            _StatusHeader(row: row),
+            const SizedBox(height: 16),
+            settings.when(
+              data: (value) => _WorkflowStepper(settings: RequisitionWorkflowSettings.fromSettings(value), currentStatus: '${row['status'] ?? 'pending'}', requesterDepartmentId: _userDepartmentId(row['user'] is Map ? Map<String, dynamic>.from(row['user'] as Map) : null)),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 16),
+            _HistoryDialog(row: row),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => ListView(padding: const EdgeInsets.all(24), children: [_ErrorCard(message: '$error')]),
+      ),
+    );
+  }
+}
+
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            Chip(label: Text('Status: ${row['status'] ?? 'pending'}')),
+            Chip(label: Text('Submitted: ${_date(row['created_at'])}')),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class _WorkflowInfoCard extends StatelessWidget {
+  const _WorkflowInfoCard({required this.settings, this.requesterDepartmentId});
+
+  final RequisitionWorkflowSettings settings;
+  final int? requesterDepartmentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCentralRequester = settings.isCentralized && requesterDepartmentId == settings.centralStoreDepartmentId;
+    final title = settings.isCentralized ? 'Centralized Store Workflow' : 'Departmental Store Workflow';
+    final message = settings.isCentralized
+        ? (isCentralRequester
+            ? 'আপনি central store department-এর user; requisition সরাসরি Central Store Initiator queue-তে pending হিসেবে যাবে।'
+            : 'আপনার requisition আগে নিজের department director review-তে যাবে, তারপর Central Store Initiator queue-তে যাবে।')
+        : 'আপনার requisition নিজের department-এর Initiator queue-তে pending হিসেবে যাবে।';
+    return Card(
+      color: (settings.isCentralized ? Colors.deepPurple : Colors.teal).withValues(alpha: .08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(settings.isCentralized ? Icons.hub_outlined : Icons.account_tree_outlined, color: settings.isCentralized ? Colors.deepPurple : Colors.teal),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 8),
+          Text(message),
+          const SizedBox(height: 8),
+          Text('Approval flow: ${_approvalRoleLabels(settings.approvalFlowRoles).join(' → ')}'),
+        ]),
+      ),
+    );
+  }
+}
+
+class _WorkflowStepper extends StatelessWidget {
+  const _WorkflowStepper({required this.settings, required this.currentStatus, this.requesterDepartmentId});
+
+  final RequisitionWorkflowSettings settings;
+  final String currentStatus;
+  final int? requesterDepartmentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = _workflowSteps(settings, requesterDepartmentId);
+    final activeIndex = _activeStepIndex(steps, currentStatus.toLowerCase());
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Routing & Approval Flow', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          for (var i = 0; i < steps.length; i++)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 13,
+                backgroundColor: i <= activeIndex ? Colors.green : Colors.grey.shade300,
+                child: Text('${i + 1}', style: const TextStyle(fontSize: 12, color: Colors.white)),
+              ),
+              title: Text(steps[i].label),
+              subtitle: Text(steps[i].hint),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _WorkflowStep {
+  const _WorkflowStep(this.statuses, this.label, this.hint);
+  final Set<String> statuses;
+  final String label;
+  final String hint;
 }
 
 class _HistoryDialog extends StatelessWidget {
@@ -463,6 +809,171 @@ List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> val
     loading: () => const [],
     error: (_, _) => const [],
   );
+}
+
+
+
+String _queueStatus(String queue) {
+  return switch (queue) {
+    'initiator' => 'pending',
+    'assistant_director' => 'initiator_checked',
+    'deputy_director' => 'ad_approved',
+    'director' => 'dd_approved',
+    _ => 'pending',
+  };
+}
+
+_QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
+  if (queue == 'initiator') {
+    final nextRole = settings.approvalFlowRoles.isEmpty ? 'assistant_director' : settings.approvalFlowRoles.first;
+    return _QueueAction(
+      action: 'forward',
+      buttonLabel: 'Forward',
+      nextLabel: _roleLabel(nextRole),
+      nextRole: nextRole,
+      nextStatus: 'initiator_checked',
+    );
+  }
+  if (queue == 'assistant_director') {
+    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Deputy Director', nextRole: 'deputy_director', nextStatus: 'ad_approved');
+  }
+  if (queue == 'deputy_director') {
+    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Director', nextRole: 'director', nextStatus: 'dd_approved');
+  }
+  return const _QueueAction(action: 'approve', buttonLabel: 'Final Approve', nextLabel: 'Distribution', nextStatus: 'director_approved');
+}
+
+String _roleLabel(String role) {
+  return switch (role) {
+    'assistant_director' => 'Assistant Director',
+    'deputy_director' => 'Deputy Director',
+    'director' => 'Director',
+    _ => role.replaceAll('_', ' '),
+  };
+}
+
+Future<void> _sendRequisitionAction(
+  WidgetRef ref, {
+  required int id,
+  required String action,
+  required String nextStatus,
+  String? nextRole,
+  String? remarks,
+}) async {
+  final dio = ref.read(apiClientProvider).dio;
+  final payload = {
+    'action': action,
+    'status': nextStatus,
+    'next_status': nextStatus,
+    if (nextRole != null) 'next_role': nextRole,
+    if (remarks != null && remarks.isNotEmpty) 'remarks': remarks,
+  };
+
+  final attempts = [
+    (method: 'POST', path: '${ApiRoutes.requisitions}/$id/$action'),
+    (method: 'PATCH', path: '${ApiRoutes.requisitions}/$id'),
+    (method: 'PUT', path: '${ApiRoutes.requisitions}/$id'),
+    (method: 'PATCH', path: '${ApiRoutes.requisitions}/$id/status'),
+  ];
+
+  for (final attempt in attempts) {
+    try {
+      if (attempt.method == 'PUT') {
+        await dio.put(attempt.path, data: payload);
+      } else if (attempt.method == 'PATCH') {
+        await dio.patch(attempt.path, data: payload);
+      } else {
+        await dio.post(attempt.path, data: payload);
+      }
+      return;
+    } on DioException catch (error) {
+      final statusCode = error.response?.statusCode;
+      if (statusCode == 404 || statusCode == 405) {
+        continue;
+      }
+      rethrow;
+    }
+  }
+
+  throw UnsupportedError(
+    'Forward/approval endpoint পাওয়া যায়নি। Backend-এ requisition action route expose করতে হবে: POST ${ApiRoutes.requisitions}/:id/$action অথবা PATCH/PUT ${ApiRoutes.requisitions}/:id।',
+  );
+}
+
+String _actionErrorMessage(Object error) {
+  if (error is UnsupportedError) return error.message ?? 'This requisition action is not available in the mobile API yet.';
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final message = data['message'] ?? data['error'];
+      if (message != null && '$message'.trim().isNotEmpty) return '$message';
+    }
+    if (error.response?.statusCode == 403) return 'আপনার এই requisition action করার permission নেই।';
+    if (error.response?.statusCode == 422) return 'Forward করার তথ্য সঠিক নয়। Remarks/approval data যাচাই করুন।';
+    if (error.response?.statusCode == 404) return 'এই requisition action endpoint পাওয়া যায়নি। Backend API route enable করা প্রয়োজন।';
+  }
+  return 'Requisition action সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
+}
+
+int? _userDepartmentId(Map<String, dynamic>? user) {
+  if (user == null) return null;
+  final department = user['department'];
+  if (department is Map) return _intFrom(department['id']);
+  final value = user['department_id'] ?? user['dept_id'];
+  final parsed = _intFrom(value);
+  return parsed == 0 ? null : parsed;
+}
+
+bool _boolFrom(dynamic value, {bool fallback = false}) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on', 'enabled'].contains(normalized)) return true;
+    if (['0', 'false', 'no', 'off', 'disabled'].contains(normalized)) return false;
+  }
+  return fallback;
+}
+
+List<String> _approvalRoleLabels(List<String> roles) {
+  final labels = <String>[];
+  for (final role in roles) {
+    final label = switch (role) {
+      'assistant_director' => 'Assistant Director',
+      'deputy_director' => 'Deputy Director',
+      'director' => 'Director',
+      _ => role.replaceAll('_', ' '),
+    };
+    if (!labels.contains(label)) labels.add(label);
+  }
+  if (!labels.contains('Director')) labels.add('Director');
+  return labels;
+}
+
+List<_WorkflowStep> _workflowSteps(RequisitionWorkflowSettings settings, int? requesterDepartmentId) {
+  final isCentralRequester = settings.isCentralized && requesterDepartmentId == settings.centralStoreDepartmentId;
+  final steps = <_WorkflowStep>[
+    if (settings.isCentralized && !isCentralRequester)
+      const _WorkflowStep({'department_director_review', 'pending_dept_director'}, 'Department Director Review', 'নিজ department director requisition review করবেন.'),
+    const _WorkflowStep({'pending'}, 'Initiator / Store Queue', 'Departmental হলে নিজ department initiator; centralized হলে central store initiator queue.'),
+  ];
+  for (final role in _approvalRoleLabels(settings.approvalFlowRoles)) {
+    if (role == 'Assistant Director') {
+      steps.add(const _WorkflowStep({'initiator_checked'}, 'Assistant Director Approval', 'Initiator যাচাইয়ের পর AD approval step.'));
+    } else if (role == 'Deputy Director') {
+      steps.add(const _WorkflowStep({'ad_approved'}, 'Deputy Director Approval', 'Configured approval flow অনুযায়ী DD review.'));
+    } else if (role == 'Director') {
+      steps.add(const _WorkflowStep({'dd_approved', 'director_approved'}, 'Director Final Approval', 'Director final approver হিসেবে requisition approve করবেন.'));
+    }
+  }
+  steps.add(const _WorkflowStep({'distributed'}, 'Distributed', 'Store requisition issue/distribute সম্পন্ন করবে.'));
+  return steps;
+}
+
+int _activeStepIndex(List<_WorkflowStep> steps, String status) {
+  if (status == 'returned') return 0;
+  final index = steps.indexWhere((step) => step.statuses.contains(status));
+  return index < 0 ? 0 : index;
 }
 
 List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }

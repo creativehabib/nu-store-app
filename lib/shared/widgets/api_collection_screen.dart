@@ -125,9 +125,13 @@ Widget screenForDrawerLabel(String label) {
     case 'My Requisitions & Status':
       return const MyRequisitionsScreen();
     case 'Initiator Queue':
+      return const RequisitionApprovalQueueScreen(title: 'Initiator Queue', queue: 'initiator');
     case 'Assistant Director Review':
+      return const RequisitionApprovalQueueScreen(title: 'Assistant Director Review', queue: 'assistant_director');
     case 'Deputy Director Review':
+      return const RequisitionApprovalQueueScreen(title: 'Deputy Director Review', queue: 'deputy_director');
     case 'Director Final Approval':
+      return const RequisitionApprovalQueueScreen(title: 'Director Final Approval', queue: 'director');
     case 'Final Print':
       return ApiCollectionScreen(title: label, route: ApiRoutes.requisitions);
     case 'Departments & Designations':
