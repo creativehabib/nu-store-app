@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_routes.dart';
 import '../providers/core_providers.dart';
+import '../../features/dashboard/presentation/requisitioner_screens.dart';
 
 final apiCollectionProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, route) async {
   final response = await ref.watch(apiClientProvider).dio.get(route);
@@ -111,15 +112,18 @@ List<Map<String, dynamic>> _extractRows(dynamic data) {
   return const [];
 }
 
-ApiCollectionScreen screenForDrawerLabel(String label) {
+Widget screenForDrawerLabel(String label) {
   switch (label) {
     case 'Categories & Products':
       return const ApiCollectionScreen(title: 'Products', route: ApiRoutes.products);
     case 'Stock In / Entries':
       return const ApiCollectionScreen(title: 'Stock Entries', route: ApiRoutes.stockEntries);
+    case 'Submit Demand':
     case 'Create Requisition':
-      return const ApiCollectionScreen(title: 'Purposes', route: ApiRoutes.purposes);
+      return const SubmitDemandScreen();
+    case 'My Requisitions':
     case 'My Requisitions & Status':
+      return const MyRequisitionsScreen();
     case 'Initiator Queue':
     case 'Assistant Director Review':
     case 'Deputy Director Review':
