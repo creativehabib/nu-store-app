@@ -188,7 +188,7 @@ class _StatCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            CircleAvatar(backgroundColor: color.withValues(alpha: .12), child: Icon(icon, color: color)),
+            CircleAvatar(backgroundColor: color.withOpacity(.12), child: Icon(icon, color: color)),
             Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             Text(title, style: const TextStyle(color: Colors.black54)),
           ],

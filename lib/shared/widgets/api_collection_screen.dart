@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_routes.dart';
 import '../providers/core_providers.dart';
 import '../../features/dashboard/presentation/requisitioner_screens.dart';
+import '../../features/dashboard/presentation/approval_queue_screen.dart';
 
 final apiCollectionProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, route) async {
   final response = await ref.watch(apiClientProvider).dio.get(route);
@@ -125,9 +126,13 @@ Widget screenForDrawerLabel(String label) {
     case 'My Requisitions & Status':
       return const MyRequisitionsScreen();
     case 'Initiator Queue':
+      return const RequisitionApprovalQueueScreen(title: 'Initiator Queue', queue: 'initiator');
     case 'Assistant Director Review':
+      return const RequisitionApprovalQueueScreen(title: 'Assistant Director Review', queue: 'assistant_director');
     case 'Deputy Director Review':
+      return const RequisitionApprovalQueueScreen(title: 'Deputy Director Review', queue: 'deputy_director');
     case 'Director Final Approval':
+      return const RequisitionApprovalQueueScreen(title: 'Director Final Approval', queue: 'director');
     case 'Final Print':
       return ApiCollectionScreen(title: label, route: ApiRoutes.requisitions);
     case 'Departments & Designations':
