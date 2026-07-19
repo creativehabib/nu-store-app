@@ -241,9 +241,188 @@ class _HistoryDialog extends StatelessWidget {
 class _StatsGrid extends StatelessWidget { const _StatsGrid({required this.stats}); final Map<String,int> stats; @override Widget build(BuildContext context) => GridView.count(crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 2.2, children: [_Card('Total Submitted Requests', stats['total'] ?? 0, Colors.blue, Icons.description_outlined), _Card('Processing (Pending)', stats['processing'] ?? 0, Colors.orange, Icons.schedule), _Card('Completed (Distributed)', stats['completed'] ?? 0, Colors.green, Icons.check_circle_outline), _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply)]); }
 class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withValues(alpha:.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withValues(alpha:.45), size: 34)]))); }
 class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.message}); final String message; @override Widget build(BuildContext context)=>Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red)))); }
-class _DemandLine { int? categoryId; int? productId; int qty=1; String? purpose; }
-class _DemandLineForm extends StatefulWidget { const _DemandLineForm({required this.line,required this.categories,required this.products,required this.purposes,this.onRemove}); final _DemandLine line; final List<Map<String,dynamic>> categories,products,purposes; final VoidCallback? onRemove; @override State<_DemandLineForm> createState()=>_DemandLineFormState(); }
-class _DemandLineFormState extends State<_DemandLineForm>{ @override Widget build(BuildContext context)=>Padding(padding: const EdgeInsets.only(bottom:12), child: Row(children:[Expanded(child: _drop('Category', widget.line.categoryId, widget.categories, (v)=>setState(()=>widget.line.categoryId=v))), const SizedBox(width:12), Expanded(flex:2, child: _drop('Item Name', widget.line.productId, widget.products, (v)=>setState(()=>widget.line.productId=v))), const SizedBox(width:12), SizedBox(width:90, child: TextFormField(initialValue:'1', decoration: const InputDecoration(labelText:'Qty'), keyboardType: TextInputType.number, onChanged:(v)=>widget.line.qty=int.tryParse(v)??1)), const SizedBox(width:12), Expanded(child: _purpose()), if(widget.onRemove!=null) IconButton(onPressed: widget.onRemove, icon: const Icon(Icons.delete_outline))])); Widget _drop(String label,int? value,List<Map<String,dynamic>> rows,ValueChanged<int?> onChanged)=>DropdownButtonFormField<int>(value:value, decoration: InputDecoration(labelText:label), items:[for(final r in rows) DropdownMenuItem(value:_intFrom(r['id']), child: Text('${r['name'] ?? r['name_en'] ?? r['title'] ?? r['product_name']}', overflow: TextOverflow.ellipsis))], onChanged:onChanged); Widget _purpose()=>DropdownButtonFormField<String>(value:widget.line.purpose, decoration: const InputDecoration(labelText:'Purpose'), items:[for(final r in widget.purposes) DropdownMenuItem(value:'${r['purpose'] ?? r['name'] ?? r['title']}', child: Text('${r['purpose'] ?? r['name'] ?? r['title']}', overflow: TextOverflow.ellipsis))], onChanged:(v)=>setState(()=>widget.line.purpose=v)); }
+class _DemandLine {
+  int? categoryId;
+  int? productId;
+  int qty = 1;
+  String? purpose;
+}
+
+class _DemandLineForm extends StatefulWidget {
+  const _DemandLineForm({
+    required this.line,
+    required this.categories,
+    required this.products,
+    required this.purposes,
+    this.onRemove,
+  });
+
+  final _DemandLine line;
+  final List<Map<String, dynamic>> categories;
+  final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> purposes;
+  final VoidCallback? onRemove;
+
+  @override
+  State<_DemandLineForm> createState() => _DemandLineFormState();
+}
+
+class _DemandLineFormState extends State<_DemandLineForm> {
+  @override
+  Widget build(BuildContext context) {
+    final categoryOptions = _optionRows(widget.categories);
+    final productOptions = _filteredProductOptions();
+    final purposeOptions = _uniquePurposeOptions(widget.purposes);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 720;
+          final fields = <Widget>[
+            _fieldBox(
+              isNarrow,
+              _idDropdown(
+                label: 'Category',
+                value: _containsId(categoryOptions, widget.line.categoryId) ? widget.line.categoryId : null,
+                rows: categoryOptions,
+                onChanged: (value) => setState(() {
+                  widget.line.categoryId = value;
+                  widget.line.productId = null;
+                }),
+              ),
+            ),
+            _fieldBox(
+              isNarrow,
+              _idDropdown(
+                label: 'Item Name',
+                value: _containsId(productOptions, widget.line.productId) ? widget.line.productId : null,
+                rows: productOptions,
+                onChanged: (value) => setState(() => widget.line.productId = value),
+              ),
+              flex: 2,
+            ),
+            SizedBox(
+              width: isNarrow ? double.infinity : 96,
+              child: TextFormField(
+                initialValue: '${widget.line.qty}',
+                decoration: const InputDecoration(labelText: 'Qty'),
+                keyboardType: TextInputType.number,
+                onChanged: (value) => widget.line.qty = int.tryParse(value) ?? 1,
+              ),
+            ),
+            _fieldBox(
+              isNarrow,
+              purposeOptions.isEmpty
+                  ? TextFormField(
+                      initialValue: widget.line.purpose,
+                      decoration: const InputDecoration(labelText: 'Purpose'),
+                      onChanged: (value) => widget.line.purpose = value,
+                    )
+                  : DropdownButtonFormField<String>(
+                      value: purposeOptions.contains(widget.line.purpose) ? widget.line.purpose : null,
+                      decoration: const InputDecoration(labelText: 'Purpose'),
+                      isExpanded: true,
+                      items: [
+                        for (final purpose in purposeOptions)
+                          DropdownMenuItem(value: purpose, child: Text(purpose, overflow: TextOverflow.ellipsis)),
+                      ],
+                      onChanged: (value) => setState(() => widget.line.purpose = value),
+                    ),
+            ),
+            if (widget.onRemove != null) IconButton(onPressed: widget.onRemove, icon: const Icon(Icons.delete_outline)),
+          ];
+
+          if (isNarrow) {
+            return Column(
+              children: [
+                for (var i = 0; i < fields.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  fields[i],
+                ],
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < fields.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                fields[i],
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _filteredProductOptions() {
+    final products = _optionRows(widget.products);
+    final categoryId = widget.line.categoryId;
+    if (categoryId == null) return products;
+    return products.where((product) {
+      final productCategory = product['category_id'] ??
+          (product['category'] is Map ? (product['category'] as Map)['id'] : null);
+      final parsedCategoryId = _intFrom(productCategory);
+      return parsedCategoryId == 0 || parsedCategoryId == categoryId;
+    }).toList();
+  }
+
+  Widget _fieldBox(bool isNarrow, Widget child, {int flex = 1}) {
+    if (isNarrow) return SizedBox(width: double.infinity, child: child);
+    return Expanded(flex: flex, child: child);
+  }
+
+  Widget _idDropdown({
+    required String label,
+    required int? value,
+    required List<Map<String, dynamic>> rows,
+    required ValueChanged<int?> onChanged,
+  }) {
+    return DropdownButtonFormField<int>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      isExpanded: true,
+      items: [
+        for (final row in rows)
+          DropdownMenuItem(value: _intFrom(row['id']), child: Text(_rowLabel(row), overflow: TextOverflow.ellipsis)),
+      ],
+      onChanged: rows.isEmpty ? null : onChanged,
+    );
+  }
+}
+
+List<Map<String, dynamic>> _optionRows(List<Map<String, dynamic>> rows) {
+  final seen = <int>{};
+  final options = <Map<String, dynamic>>[];
+  for (final row in rows) {
+    final id = _intFrom(row['id']);
+    if (id == 0 || seen.contains(id)) continue;
+    seen.add(id);
+    options.add(row);
+  }
+  return options;
+}
+
+bool _containsId(List<Map<String, dynamic>> rows, int? id) {
+  if (id == null) return false;
+  return rows.any((row) => _intFrom(row['id']) == id);
+}
+
+List<String> _uniquePurposeOptions(List<Map<String, dynamic>> rows) {
+  final options = <String>[];
+  for (final row in rows) {
+    final purpose = '${row['purpose'] ?? row['name'] ?? row['title'] ?? ''}'.trim();
+    if (purpose.isNotEmpty && !options.contains(purpose)) options.add(purpose);
+  }
+  return options;
+}
+
+String _rowLabel(Map<String, dynamic> row) {
+  return '${row['name'] ?? row['name_en'] ?? row['title'] ?? row['product_name'] ?? 'Item'}';
+}
 
 List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> value) {
   return value.when(
