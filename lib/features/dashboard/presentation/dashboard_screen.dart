@@ -6,6 +6,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../../screens/home_screen.dart';
 import '../../../shared/widgets/api_collection_screen.dart';
 import 'dashboard_controller.dart';
+import 'requisitioner_screens.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -93,6 +94,10 @@ class _DashboardBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (selectedIndex != 0) {
       return Center(child: Text('${navItems[selectedIndex].label} module coming next'));
+    }
+
+    if (role == AppRole.requisitioner) {
+      return const RequisitionerDashboard();
     }
 
     if (!RolePermissions.can(role, AppPermission.manageInventory)) {
@@ -282,12 +287,12 @@ List<_NavItem> _drawerItemsFor(AppRole role) {
   }
 
   if (RolePermissions.can(role, AppPermission.createRequisition)) {
-    items.add(const _NavItem(icon: Icons.playlist_add, label: 'Create Requisition'));
+    items.add(const _NavItem(icon: Icons.playlist_add, label: 'Submit Demand'));
   }
 
   if (RolePermissions.can(role, AppPermission.viewOwnRequisitions) ||
       RolePermissions.can(role, AppPermission.viewRequisitionLocation)) {
-    items.add(const _NavItem(icon: Icons.timeline, label: 'My Requisitions & Status'));
+    items.add(const _NavItem(icon: Icons.timeline, label: 'My Requisitions'));
   }
 
   if (RolePermissions.can(role, AppPermission.forwardRequisition)) {
