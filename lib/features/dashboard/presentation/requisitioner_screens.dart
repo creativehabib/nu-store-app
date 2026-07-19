@@ -102,9 +102,9 @@ class _SubmitDemandScreenState extends ConsumerState<SubmitDemandScreen> {
                 for (var i = 0; i < _lines.length; i++)
                   _DemandLineForm(
                     line: _lines[i],
-                    categories: categories.valueOrNull ?? const [],
-                    products: products.valueOrNull ?? const [],
-                    purposes: purposes.valueOrNull ?? const [],
+                    categories: _asyncRows(categories),
+                    products: _asyncRows(products),
+                    purposes: _asyncRows(purposes),
                     onRemove: _lines.length == 1 ? null : () => setState(() => _lines.removeAt(i)),
                   ),
                 Align(
@@ -244,6 +244,14 @@ class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.messa
 class _DemandLine { int? categoryId; int? productId; int qty=1; String? purpose; }
 class _DemandLineForm extends StatefulWidget { const _DemandLineForm({required this.line,required this.categories,required this.products,required this.purposes,this.onRemove}); final _DemandLine line; final List<Map<String,dynamic>> categories,products,purposes; final VoidCallback? onRemove; @override State<_DemandLineForm> createState()=>_DemandLineFormState(); }
 class _DemandLineFormState extends State<_DemandLineForm>{ @override Widget build(BuildContext context)=>Padding(padding: const EdgeInsets.only(bottom:12), child: Row(children:[Expanded(child: _drop('Category', widget.line.categoryId, widget.categories, (v)=>setState(()=>widget.line.categoryId=v))), const SizedBox(width:12), Expanded(flex:2, child: _drop('Item Name', widget.line.productId, widget.products, (v)=>setState(()=>widget.line.productId=v))), const SizedBox(width:12), SizedBox(width:90, child: TextFormField(initialValue:'1', decoration: const InputDecoration(labelText:'Qty'), keyboardType: TextInputType.number, onChanged:(v)=>widget.line.qty=int.tryParse(v)??1)), const SizedBox(width:12), Expanded(child: _purpose()), if(widget.onRemove!=null) IconButton(onPressed: widget.onRemove, icon: const Icon(Icons.delete_outline))])); Widget _drop(String label,int? value,List<Map<String,dynamic>> rows,ValueChanged<int?> onChanged)=>DropdownButtonFormField<int>(value:value, decoration: InputDecoration(labelText:label), items:[for(final r in rows) DropdownMenuItem(value:_intFrom(r['id']), child: Text('${r['name'] ?? r['name_en'] ?? r['title'] ?? r['product_name']}', overflow: TextOverflow.ellipsis))], onChanged:onChanged); Widget _purpose()=>DropdownButtonFormField<String>(value:widget.line.purpose, decoration: const InputDecoration(labelText:'Purpose'), items:[for(final r in widget.purposes) DropdownMenuItem(value:'${r['purpose'] ?? r['name'] ?? r['title']}', child: Text('${r['purpose'] ?? r['name'] ?? r['title']}', overflow: TextOverflow.ellipsis))], onChanged:(v)=>setState(()=>widget.line.purpose=v)); }
+
+List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> value) {
+  return value.when(
+    data: (rows) => rows,
+    loading: () => const [],
+    error: (_, _) => const [],
+  );
+}
 
 List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
 int _intFrom(dynamic v)=> v is num ? v.toInt() : int.tryParse('$v') ?? 0;
