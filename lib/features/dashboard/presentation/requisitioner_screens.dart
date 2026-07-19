@@ -270,9 +270,9 @@ class _DemandLineForm extends StatefulWidget {
 class _DemandLineFormState extends State<_DemandLineForm> {
   @override
   Widget build(BuildContext context) {
-    final categoryOptions = _optionRows(widget.categories);
     final productOptions = _filteredProductOptions();
-    final purposeOptions = _uniquePurposeOptions(widget.purposes);
+    final categoryOptions = _categoryOptions(widget.categories, widget.products);
+    final purposeOptions = _purposeOptions(widget.purposes);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -411,17 +411,50 @@ bool _containsId(List<Map<String, dynamic>> rows, int? id) {
   return rows.any((row) => _intFrom(row['id']) == id);
 }
 
-List<String> _uniquePurposeOptions(List<Map<String, dynamic>> rows) {
+List<Map<String, dynamic>> _categoryOptions(
+  List<Map<String, dynamic>> categories,
+  List<Map<String, dynamic>> products,
+) {
+  final options = _optionRows(categories);
+  if (options.isNotEmpty) return options;
+
+  final fromProducts = <Map<String, dynamic>>[];
+  final seen = <int>{};
+  for (final product in products) {
+    final nestedCategory = product['category'];
+    if (nestedCategory is Map) {
+      final category = Map<String, dynamic>.from(nestedCategory);
+      final id = _intFrom(category['id']);
+      if (id != 0 && !seen.contains(id)) {
+        seen.add(id);
+        fromProducts.add(category);
+      }
+      continue;
+    }
+
+    final categoryId = _intFrom(product['category_id']);
+    if (categoryId != 0 && !seen.contains(categoryId)) {
+      seen.add(categoryId);
+      fromProducts.add({
+        'id': categoryId,
+        'name': product['category_name'] ?? product['category_title'] ?? 'Category $categoryId',
+      });
+    }
+  }
+  return fromProducts;
+}
+
+List<String> _purposeOptions(List<Map<String, dynamic>> rows) {
   final options = <String>[];
   for (final row in rows) {
-    final purpose = '${row['purpose'] ?? row['name'] ?? row['title'] ?? ''}'.trim();
+    final purpose = '${row['purpose'] ?? row['name'] ?? row['name_en'] ?? row['title'] ?? ''}'.trim();
     if (purpose.isNotEmpty && !options.contains(purpose)) options.add(purpose);
   }
-  return options;
+  return options.isEmpty ? const ['For official use'] : options;
 }
 
 String _rowLabel(Map<String, dynamic> row) {
-  return '${row['name'] ?? row['name_en'] ?? row['title'] ?? row['product_name'] ?? 'Item'}';
+  return '${row['name'] ?? row['name_en'] ?? row['name_bn'] ?? row['title'] ?? row['product_name'] ?? row['category_name'] ?? 'Item'}';
 }
 
 List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> value) {
@@ -432,7 +465,7 @@ List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> val
   );
 }
 
-List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
+List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
 int _intFrom(dynamic v)=> v is num ? v.toInt() : int.tryParse('$v') ?? 0;
 Map<String,int> _statsFromRows(List<Map<String,dynamic>> rows)=> {'total': rows.length, 'processing': rows.where((r)=>_processingStatuses.contains('${r['status']}'.toLowerCase())).length, 'completed': rows.where((r)=>'${r['status']}'.toLowerCase()=='distributed').length, 'returned': rows.where((r)=>'${r['status']}'.toLowerCase()=='returned').length};
 String _date(dynamic value){ final d=DateTime.tryParse('$value'); return d==null ? '-' : DateFormat('dd MMM, yyyy hh:mm a').format(d.toLocal()); }
