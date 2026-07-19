@@ -93,7 +93,9 @@ class RequisitionerDashboard extends ConsumerWidget {
     final stats = ref.watch(requisitionerDashboardProvider);
     final settings = ref.watch(appSettingsProvider);
     return RefreshIndicator(
-      onRefresh: () => ref.refresh(requisitionerDashboardProvider.future),
+      onRefresh: () async {
+        await ref.refresh(requisitionerDashboardProvider.future);
+      },
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
@@ -220,7 +222,9 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('My Requisitions')),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(myRequisitionsProvider.future),
+        onRefresh: () async {
+          await ref.refresh(myRequisitionsProvider.future);
+        },
         child: reqs.when(
           data: (items) => _buildList(context, items),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -688,6 +692,149 @@ class _WorkflowStep {
   final String hint;
 }
 
+
+final requisitionDetailProvider = FutureProvider.family<Map<String, dynamic>, int>((ref, id) async {
+  final response = await ref.watch(apiClientProvider).dio.get('${ApiRoutes.requisitions}/$id');
+  final data = response.data is Map ? Map<String, dynamic>.from(response.data as Map) : <String, dynamic>{};
+  final payload = data['data'];
+  return payload is Map ? Map<String, dynamic>.from(payload) : data;
+});
+
+
+class RequisitionDetailsScreen extends ConsumerWidget {
+  const RequisitionDetailsScreen({super.key, required this.id, required this.fallback});
+
+  final int id;
+  final Map<String, dynamic> fallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = id == 0 ? AsyncData<Map<String, dynamic>>(fallback) : ref.watch(requisitionDetailProvider(id));
+    final settings = ref.watch(appSettingsProvider);
+    return Scaffold(
+      appBar: AppBar(title: Text('${fallback['requisition_no'] ?? 'Requisition Details'}')),
+      body: details.when(
+        data: (row) => ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            _StatusHeader(row: row),
+            const SizedBox(height: 16),
+            settings.when(
+              data: (value) => _WorkflowStepper(settings: RequisitionWorkflowSettings.fromSettings(value), currentStatus: '${row['status'] ?? 'pending'}', requesterDepartmentId: _userDepartmentId(row['user'] is Map ? Map<String, dynamic>.from(row['user'] as Map) : null)),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 16),
+            _HistoryDialog(row: row),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => ListView(padding: const EdgeInsets.all(24), children: [_ErrorCard(message: '$error')]),
+      ),
+    );
+  }
+}
+
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.row});
+  final Map<String, dynamic> row;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            Chip(label: Text('Status: ${row['status'] ?? 'pending'}')),
+            Chip(label: Text('Submitted: ${_date(row['created_at'])}')),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class _WorkflowInfoCard extends StatelessWidget {
+  const _WorkflowInfoCard({required this.settings, this.requesterDepartmentId});
+
+  final RequisitionWorkflowSettings settings;
+  final int? requesterDepartmentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCentralRequester = settings.isCentralized && requesterDepartmentId == settings.centralStoreDepartmentId;
+    final title = settings.isCentralized ? 'Centralized Store Workflow' : 'Departmental Store Workflow';
+    final message = settings.isCentralized
+        ? (isCentralRequester
+            ? 'আপনি central store department-এর user; requisition সরাসরি Central Store Initiator queue-তে pending হিসেবে যাবে।'
+            : 'আপনার requisition আগে নিজের department director review-তে যাবে, তারপর Central Store Initiator queue-তে যাবে।')
+        : 'আপনার requisition নিজের department-এর Initiator queue-তে pending হিসেবে যাবে।';
+    return Card(
+      color: (settings.isCentralized ? Colors.deepPurple : Colors.teal).withOpacity(.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(settings.isCentralized ? Icons.hub_outlined : Icons.account_tree_outlined, color: settings.isCentralized ? Colors.deepPurple : Colors.teal),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 8),
+          Text(message),
+          const SizedBox(height: 8),
+          Text('Approval flow: ${_approvalRoleLabels(settings.approvalFlowRoles).join(' → ')}'),
+        ]),
+      ),
+    );
+  }
+}
+
+class _WorkflowStepper extends StatelessWidget {
+  const _WorkflowStepper({required this.settings, required this.currentStatus, this.requesterDepartmentId});
+
+  final RequisitionWorkflowSettings settings;
+  final String currentStatus;
+  final int? requesterDepartmentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = _workflowSteps(settings, requesterDepartmentId);
+    final activeIndex = _activeStepIndex(steps, currentStatus.toLowerCase());
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Routing & Approval Flow', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          for (var i = 0; i < steps.length; i++)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 13,
+                backgroundColor: i <= activeIndex ? Colors.green : Colors.grey.shade300,
+                child: Text('${i + 1}', style: const TextStyle(fontSize: 12, color: Colors.white)),
+              ),
+              title: Text(steps[i].label),
+              subtitle: Text(steps[i].hint),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _WorkflowStep {
+  const _WorkflowStep(this.statuses, this.label, this.hint);
+  final Set<String> statuses;
+  final String label;
+  final String hint;
+}
+
 class _HistoryDialog extends StatelessWidget {
   const _HistoryDialog({required this.row});
   final Map<String, dynamic> row;
@@ -712,7 +859,7 @@ class _HistoryDialog extends StatelessWidget {
 }
 
 class _StatsGrid extends StatelessWidget { const _StatsGrid({required this.stats}); final Map<String,int> stats; @override Widget build(BuildContext context) => GridView.count(crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 2.2, children: [_Card('Total Submitted Requests', stats['total'] ?? 0, Colors.blue, Icons.description_outlined), _Card('Processing (Pending)', stats['processing'] ?? 0, Colors.orange, Icons.schedule), _Card('Completed (Distributed)', stats['completed'] ?? 0, Colors.green, Icons.check_circle_outline), _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply)]); }
-class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withValues(alpha:.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withValues(alpha:.45), size: 34)]))); }
+class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withOpacity(.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withOpacity(.45), size: 34)]))); }
 class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.message}); final String message; @override Widget build(BuildContext context)=>Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red)))); }
 class _DemandLine {
   int? categoryId;

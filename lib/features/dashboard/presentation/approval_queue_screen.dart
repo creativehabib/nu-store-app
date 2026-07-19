@@ -32,7 +32,9 @@ class RequisitionApprovalQueueScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(requisitionQueueProvider(queue).future),
+        onRefresh: () async {
+          await ref.refresh(requisitionQueueProvider(queue).future);
+        },
         child: items.when(
           data: (rows) {
             if (rows.isEmpty) {
