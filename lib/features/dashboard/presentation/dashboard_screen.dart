@@ -441,7 +441,7 @@ List<_NavItem> _drawerItemsFor(AppRole role) {
     items.add(const _NavItem(icon: Icons.approval_outlined, label: 'Director Final Approval'));
   }
 
-  if (RolePermissions.can(role, AppPermission.printFinalRequisition)) {
+  if (role != AppRole.initiator && RolePermissions.can(role, AppPermission.printFinalRequisition)) {
     items.add(const _NavItem(icon: Icons.print_outlined, label: 'Final Print'));
   }
 
