@@ -10,6 +10,13 @@ class DashboardRepository {
   final ApiClient _apiClient;
 
   Future<DashboardStats> fetchStats() async {
+    Response<dynamic>? dashboardResponse;
+    try {
+      dashboardResponse = await _apiClient.dio.get(ApiRoutes.dashboard, queryParameters: {'trend_filter': '30'});
+    } on DioException {
+      dashboardResponse = null;
+    }
+
     final responses = await Future.wait<Response<dynamic>>([
       _apiClient.dio.get(ApiRoutes.inventory),
       _apiClient.dio.get(ApiRoutes.requisitions),
@@ -24,12 +31,27 @@ class DashboardRepository {
     final approvalQueue = requisitions.where(_isWaitingForApproval).length;
     final lowStockItems = inventory.where(_isLowStock).length;
 
+    final dashboardData = _mapFromResponse(dashboardResponse?.data);
+    final roleStats = DashboardStats.fromJson(dashboardData).roleStats;
+    final recentRequisitions = DashboardStats.fromJson(dashboardData).recentRequisitions;
+
     return DashboardStats(
       currentStock: stockEntries.isNotEmpty ? stockEntries.length : inventory.length,
-      pendingRequisitions: pendingRequisitions,
+      pendingRequisitions: roleStats['pending_action'] ?? pendingRequisitions,
       approvalQueue: approvalQueue,
-      lowStockItems: lowStockItems,
+      lowStockItems: roleStats['stock_out_products'] ?? lowStockItems,
+      roleStats: roleStats,
+      recentRequisitions: recentRequisitions.isNotEmpty ? recentRequisitions : requisitions.take(5).toList(),
     );
+  }
+
+  Map<String, dynamic> _mapFromResponse(dynamic data) {
+    if (data is Map) {
+      final payload = data['data'];
+      if (payload is Map) return Map<String, dynamic>.from(payload);
+      return Map<String, dynamic>.from(data);
+    }
+    return const <String, dynamic>{};
   }
 
   List<Map<String, dynamic>> _listFromResponse(dynamic data) {

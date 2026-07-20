@@ -5,6 +5,7 @@ import '../../auth/domain/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../../screens/home_screen.dart';
 import '../../../shared/widgets/api_collection_screen.dart';
+import '../domain/dashboard_stats.dart';
 import 'dashboard_controller.dart';
 import 'requisitioner_screens.dart';
 
@@ -137,36 +138,163 @@ class _DashboardBody extends ConsumerWidget {
   }
 }
 
-class _RoleDashboard extends StatelessWidget {
+class _RoleDashboard extends ConsumerWidget {
   const _RoleDashboard({required this.role});
 
   final AppRole role;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = _drawerItemsFor(role);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          '${role.label} Dashboard',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text('Only your permitted requisition workflow actions are shown.'),
-        const SizedBox(height: 16),
-        for (final item in items)
-          Card(
-            child: ListTile(
-              leading: Icon(item.icon, color: const Color(0xFF2563EB)),
-              title: Text(item.label),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+    final stats = ref.watch(dashboardStatsProvider);
+
+    return RefreshIndicator(
+      onRefresh: () async => ref.refresh(dashboardStatsProvider.future),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _RoleHero(role: role),
+          const SizedBox(height: 16),
+          stats.when(
+            data: (value) => _InitiatorInsights(stats: value, enabled: role == AppRole.initiator),
+            loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
+            error: (error, _) => _OfflineStatsHint(message: 'Live dashboard data load failed: $error'),
+          ),
+          const SizedBox(height: 16),
+          Text('Quick actions', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          for (final item in items)
+            Card(
+              child: ListTile(
+                leading: Icon(item.icon, color: const Color(0xFF2563EB)),
+                title: Text(item.label),
+                subtitle: Text(_actionHint(item.label)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+                ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleHero extends StatelessWidget {
+  const _RoleHero({required this.role});
+
+  final AppRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF7C3AED)]),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 28, backgroundColor: Colors.white24, child: Icon(Icons.storefront, color: Colors.white, size: 30)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${role.label} Dashboard', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                const Text('Pending checks, stock-out alerts, print-ready requisitions, and distribution work in one place.', style: TextStyle(color: Colors.white70)),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InitiatorInsights extends StatelessWidget {
+  const _InitiatorInsights({required this.stats, required this.enabled});
+
+  final DashboardStats stats;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final pendingAction = stats.roleStats['pending_action'] ?? stats.pendingRequisitions;
+    final printReady = stats.roleStats['print_ready'] ?? stats.roleStats['ready_for_print'] ?? 0;
+    final distributeReady = stats.roleStats['ready_for_distribute'] ?? stats.roleStats['director_approved'] ?? stats.approvalQueue;
+    final stockOut = stats.roleStats['stock_out_products'] ?? stats.lowStockItems;
+    final total = stats.roleStats['total_requisitions'] ?? stats.roleStats['total_system_requisitions'] ?? stats.recentRequisitions.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth > 760 ? 4 : constraints.maxWidth > 520 ? 2 : 1;
+            return GridView.count(
+              crossAxisCount: columns,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: columns == 1 ? 3.1 : 1.55,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _MetricTile(title: 'New Requisitions', subtitle: 'In your queue', value: pendingAction, icon: Icons.assignment_late_outlined, color: const Color(0xFFF59E0B)),
+                _MetricTile(title: 'Print & Distribute', subtitle: 'Ready to process', value: printReady + distributeReady, icon: Icons.print_outlined, color: const Color(0xFF16A34A)),
+                _MetricTile(title: 'Stock Out Products', subtitle: 'Needs attention', value: stockOut, icon: Icons.warning_amber_rounded, color: const Color(0xFFEF4444)),
+                _MetricTile(title: 'Total Requisitions', subtitle: enabled ? 'System activity' : 'Visible activity', value: total, icon: Icons.file_copy_outlined, color: const Color(0xFF2563EB)),
+              ],
+            );
+          },
+        ),
+        if (stats.recentRequisitions.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Recent requisitions', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          for (final row in stats.recentRequisitions.take(4))
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}'),
+                subtitle: Text('Status: ${row['status'] ?? 'pending'}'),
+              ),
+            ),
+        ],
       ],
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.title, required this.subtitle, required this.value, required this.icon, required this.color});
+
+  final String title;
+  final String subtitle;
+  final int value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: color.withOpacity(.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text('$value', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+              Text(subtitle, style: TextStyle(color: color.withOpacity(.85))),
+            ])),
+            Icon(icon, color: color.withOpacity(.45), size: 38),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -199,14 +327,16 @@ class _StatCard extends StatelessWidget {
 }
 
 class _OfflineStatsHint extends StatelessWidget {
-  const _OfflineStatsHint();
+  const _OfflineStatsHint({this.message = 'Dashboard API is not reachable yet. Connect Laravel API to load live stock, requisition, and approval queue stats.'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('Dashboard API is not reachable yet. Connect Laravel API to load live stock, requisition, and approval queue stats.'),
+        padding: const EdgeInsets.all(16),
+        child: Text(message),
       ),
     );
   }
@@ -324,4 +454,13 @@ List<_NavItem> _drawerItemsFor(AppRole role) {
   }
 
   return items;
+}
+
+String _actionHint(String label) {
+  return switch (label) {
+    'Initiator Queue' => 'Check new requisitions and forward them to approval.',
+    'Final Print' => 'Print completed requisition letters after final approval.',
+    'My Requisitions' => 'Track requisition status and location.',
+    _ => 'Open this module.',
+  };
 }
