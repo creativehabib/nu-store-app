@@ -223,7 +223,7 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
       return (_query.isEmpty || haystack.contains(_query.toLowerCase())) && (_status == 'all' || status == _status);
     }).toList();
     final stats = _statsFromRows(items);
-    return ListView(padding: const EdgeInsets.all(24), children: [
+    return ListView(padding: const EdgeInsets.all(16), children: [
       _MyRequisitionsHeader(total: items.length),
       const SizedBox(height: 16),
       _StatsGrid(stats: stats),
@@ -322,25 +322,42 @@ class _MyRequisitionsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.sizeOf(context).width < 380;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isNarrow ? 16 : 20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF14B8A6)]),
       ),
       child: Row(children: [
-        const CircleAvatar(
-          backgroundColor: Colors.white24,
-          child: Icon(Icons.timeline, color: Colors.white),
-        ),
-        const SizedBox(width: 12),
+        if (!isNarrow) ...[
+          const CircleAvatar(
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.timeline, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('My Requisitions', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(
+              'My Requisitions',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
             const SizedBox(height: 4),
-            const Text('Only requisitions submitted by you are shown here.', style: TextStyle(color: Colors.white70)),
+            const Text(
+              'Only requisitions submitted by you are shown here.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.white70),
+            ),
           ]),
         ),
+        const SizedBox(width: 8),
         Chip(label: Text('$total Total')),
       ]),
     );
@@ -355,33 +372,54 @@ class _FilterCard extends StatelessWidget {
   final ValueChanged<String?> onStatusChanged;
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(runSpacing: 12, spacing: 12, children: [
-            SizedBox(
-              width: 420,
-              child: TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Search requisition no or product name...',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: onQueryChanged,
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 520;
+          final search = TextField(
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search requisition no or product name...',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: onQueryChanged,
+          );
+          final statusDropdown = DropdownButtonFormField<String>(
+            value: status,
+            decoration: const InputDecoration(
+              labelText: 'Status',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All Status')),
+              DropdownMenuItem(value: 'pending', child: Text('Pending')),
+              DropdownMenuItem(value: 'returned', child: Text('Returned')),
+              DropdownMenuItem(value: 'distributed', child: Text('Distributed')),
+            ],
+            onChanged: onStatusChanged,
+          );
+
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: isNarrow
+                  ? Column(
+                      children: [
+                        search,
+                        const SizedBox(height: 12),
+                        statusDropdown,
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: search),
+                        const SizedBox(width: 12),
+                        SizedBox(width: 220, child: statusDropdown),
+                      ],
+                    ),
               ),
             ),
-            DropdownButton<String>(
-              value: status,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All Status')),
-                DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                DropdownMenuItem(value: 'returned', child: Text('Returned')),
-                DropdownMenuItem(value: 'distributed', child: Text('Distributed')),
-              ],
-              onChanged: onStatusChanged,
-            ),
-          ]),
-        ),
+          );
+        },
       );
 }
 
@@ -442,8 +480,96 @@ class _WorkflowInfoCard extends StatelessWidget {
 }
 
 
-class _StatsGrid extends StatelessWidget { const _StatsGrid({required this.stats}); final Map<String,int> stats; @override Widget build(BuildContext context) => GridView.count(crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 2.2, children: [_Card('Total Submitted Requests', stats['total'] ?? 0, Colors.blue, Icons.description_outlined), _Card('Processing (Pending)', stats['processing'] ?? 0, Colors.orange, Icons.schedule), _Card('Completed (Distributed)', stats['completed'] ?? 0, Colors.green, Icons.check_circle_outline), _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply)]); }
-class _Card extends StatelessWidget { const _Card(this.title,this.value,this.color,this.icon); final String title; final int value; final Color color; final IconData icon; @override Widget build(BuildContext context)=>Card(color: color.withOpacity(.08), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children:[Column(crossAxisAlignment: CrossAxisAlignment.start, children:[Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)), const Spacer(), Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))]), Icon(icon, color: color.withOpacity(.45), size: 34)]))); }
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({required this.stats});
+
+  final Map<String, int> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width > 900 ? 4 : 2;
+        final isCompact = width < 420;
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: isCompact ? 10 : 16,
+          mainAxisSpacing: isCompact ? 10 : 16,
+          childAspectRatio: isCompact ? 1.35 : 1.85,
+          children: [
+            _Card(
+              'Total Submitted Requests',
+              stats['total'] ?? 0,
+              Colors.blue,
+              Icons.description_outlined,
+            ),
+            _Card(
+              'Processing (Pending)',
+              stats['processing'] ?? 0,
+              Colors.orange,
+              Icons.schedule,
+            ),
+            _Card(
+              'Completed (Distributed)',
+              stats['completed'] ?? 0,
+              Colors.green,
+              Icons.check_circle_outline,
+            ),
+            _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  const _Card(this.title, this.value, this.color, this.icon);
+
+  final String title;
+  final int value;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: color.withOpacity(.08),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: Icon(icon, color: color.withOpacity(.45), size: 26),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
 class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.message}); final String message; @override Widget build(BuildContext context)=>Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red)))); }
 class _DemandLine {
   int? categoryId;
