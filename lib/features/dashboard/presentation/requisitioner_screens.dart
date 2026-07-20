@@ -31,8 +31,7 @@ final requisitionerDashboardProvider = FutureProvider<Map<String, int>>((ref) as
   };
 });
 
-final myRequisitionsProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final myRequisitionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final user = ref.watch(authControllerProvider).user;
   final response = await ref.watch(apiClientProvider).dio.get(
     ApiRoutes.requisitions,
@@ -66,6 +65,9 @@ final purposesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async 
   return _rows(response.data);
 });
 
+// -----------------------------------------------------------------------------
+// SCREENS
+// -----------------------------------------------------------------------------
 
 class RequisitionerDashboard extends ConsumerWidget {
   const RequisitionerDashboard({super.key});
@@ -74,24 +76,36 @@ class RequisitionerDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(requisitionerDashboardProvider);
     final settings = ref.watch(appSettingsProvider);
+
     return RefreshIndicator(
       onRefresh: () async {
         await ref.refresh(requisitionerDashboardProvider.future);
       },
       child: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         children: [
-          Text('Requisitioner Dashboard', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          settings.when(
-            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value)),
-            loading: () => const LinearProgressIndicator(),
-            error: (_, _) => const _ErrorCard(message: 'Settings load failed. Default departmental workflow will be used for UI hints.'),
+          Text(
+            'Requisitioner Dashboard',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+          settings.when(
+            data: (value) => _WorkflowInfoCard(
+                settings: RequisitionWorkflowSettings.fromSettings(value)),
+            loading: () => const LinearProgressIndicator(borderRadius: BorderRadius.all(Radius.circular(8))),
+            error: (_, _) => const _ErrorCard(
+                message: 'Settings load failed. Default departmental workflow will be used.'),
+          ),
+          const SizedBox(height: 24),
           stats.when(
             data: (value) => _StatsGrid(stats: value),
-            loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+            loading: () => const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator())),
             error: (error, _) => _ErrorCard(message: 'Dashboard data load failed: $error'),
           ),
         ],
@@ -118,52 +132,75 @@ class _SubmitDemandScreenState extends ConsumerState<SubmitDemandScreen> {
     final purposes = ref.watch(purposesProvider);
     final settings = ref.watch(appSettingsProvider);
     final user = ref.watch(authControllerProvider).user;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Submit Demand')),
+      appBar: AppBar(
+        title: const Text('Submit Demand', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         children: [
-          Text('Submit New Demand', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
           settings.when(
-            data: (value) => _WorkflowInfoCard(settings: RequisitionWorkflowSettings.fromSettings(value), requesterDepartmentId: _userDepartmentId(user)),
-            loading: () => const LinearProgressIndicator(),
-            error: (_, _) => const _ErrorCard(message: 'Could not load workflow settings. You can still submit; backend will route it.'),
+            data: (value) => _WorkflowInfoCard(
+                settings: RequisitionWorkflowSettings.fromSettings(value),
+                requesterDepartmentId: _userDepartmentId(user)),
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const _ErrorCard(
+                message: 'Could not load workflow settings. You can still submit.'),
           ),
-          const Divider(height: 28),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(children: [
-                for (var i = 0; i < _lines.length; i++)
-                  _DemandLineForm(
-                    line: _lines[i],
-                    categories: _asyncRows(categories),
-                    products: _asyncRows(products),
-                    purposes: _asyncRows(purposes),
-                    onRemove: _lines.length == 1 ? null : () => setState(() => _lines.removeAt(i)),
-                  ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () => setState(() => _lines.add(_DemandLine())),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add New Item'),
-                  ),
-                ),
-                const Divider(height: 32),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: _submitting ? null : _submit,
-                    icon: const Icon(Icons.send),
-                    label: Text(_submitting ? 'Submitting...' : 'Submit Demand'),
-                  ),
-                ),
-              ]),
+          const SizedBox(height: 20),
+
+          for (var i = 0; i < _lines.length; i++)
+            _DemandLineForm(
+              index: i,
+              line: _lines[i],
+              categories: _asyncRows(categories),
+              products: _asyncRows(products),
+              purposes: _asyncRows(purposes),
+              onRemove: _lines.length == 1 ? null : () => setState(() => _lines.removeAt(i)),
+            ),
+
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+              onPressed: () => setState(() => _lines.add(_DemandLine())),
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('Add Another Item', style: TextStyle(fontSize: 16)),
             ),
           ),
+          const SizedBox(height: 80),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))
+            ],
+          ),
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: _submitting ? null : _submit,
+            icon: _submitting
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.send),
+            label: Text(
+                _submitting ? 'Submitting...' : 'Submit Demand',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -174,13 +211,24 @@ class _SubmitDemandScreenState extends ConsumerState<SubmitDemandScreen> {
       'demanded_qty': line.qty,
       'purpose': line.purpose,
     }).toList();
-    if (items.isEmpty) return;
+
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select at least one item to submit.'))
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
     try {
       await ref.read(apiClientProvider).dio.post(ApiRoutes.requisitions, data: {'items': items});
       ref.invalidate(myRequisitionsProvider);
       ref.invalidate(requisitionerDashboardProvider);
       if (mounted) Navigator.pop(context);
+    } catch(e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Submission failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -202,7 +250,11 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
   Widget build(BuildContext context) {
     final reqs = ref.watch(myRequisitionsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('My Requisitions')),
+      appBar: AppBar(
+        title: const Text('My Requisitions', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await ref.refresh(myRequisitionsProvider.future);
@@ -220,25 +272,120 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
     final filtered = items.where((item) {
       final haystack = '${item['requisition_no']} ${_itemSummary(item)}'.toLowerCase();
       final status = '${item['status'] ?? ''}'.toLowerCase();
-      return (_query.isEmpty || haystack.contains(_query.toLowerCase())) && (_status == 'all' || status == _status);
+      return (_query.isEmpty || haystack.contains(_query.toLowerCase())) &&
+          (_status == 'all' || status == _status);
     }).toList();
+
     final stats = _statsFromRows(items);
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      _MyRequisitionsHeader(total: items.length),
-      const SizedBox(height: 16),
-      _StatsGrid(stats: stats),
-      const SizedBox(height: 20),
-      _FilterCard(
-        status: _status,
-        onQueryChanged: (value) => setState(() => _query = value),
-        onStatusChanged: (value) => setState(() => _status = value ?? 'all'),
-      ),
-      const SizedBox(height: 12),
-      if (filtered.isEmpty)
-        const _EmptyRequisitionCard()
-      else
-        for (final item in filtered) _RequisitionTile(row: item),
-    ]);
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _MyRequisitionsHeader(total: items.length),
+              const SizedBox(height: 20),
+              _StatsGrid(stats: stats),
+              const SizedBox(height: 24),
+              _ModernFilterSection(
+                currentStatus: _status,
+                onQueryChanged: (value) => setState(() => _query = value),
+                onStatusChanged: (value) => setState(() => _status = value),
+              ),
+              const SizedBox(height: 16),
+            ]),
+          ),
+        ),
+        if (filtered.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyRequisitionCard(),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, index) => _RequisitionTile(row: filtered[index]),
+                childCount: filtered.length,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// UI COMPONENTS
+// -----------------------------------------------------------------------------
+
+class _ModernFilterSection extends StatelessWidget {
+  const _ModernFilterSection({
+    required this.currentStatus,
+    required this.onQueryChanged,
+    required this.onStatusChanged,
+  });
+
+  final String currentStatus;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<String> onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final statuses = [
+      {'val': 'all', 'label': 'All'},
+      {'val': 'pending', 'label': 'Pending'},
+      {'val': 'distributed', 'label': 'Distributed'},
+      {'val': 'returned', 'label': 'Returned'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Search by req no or item...',
+            prefixIcon: const Icon(Icons.search, color: Colors.grey),
+            filled: true,
+            fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(30),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onChanged: onQueryChanged,
+        ),
+        const SizedBox(height: 16),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: statuses.map((s) {
+              final isSelected = currentStatus == s['val'];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ChoiceChip(
+                  label: Text(s['label']!),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) onStatusChanged(s['val']!);
+                  },
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  showCheckmark: false,
+                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Theme.of(context).primaryColor : Colors.black87,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -251,53 +398,96 @@ class _RequisitionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = '${row['status'] ?? 'pending'}';
     final color = _statusColor(status);
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: color.withOpacity(.22)),
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(color: color.withOpacity(0.15), width: 1.5),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _openDetails(context),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              CircleAvatar(
-                backgroundColor: color.withOpacity(.12),
-                child: Icon(Icons.receipt_long_outlined, color: color),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    '${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(_itemSummary(row), maxLines: 2, overflow: TextOverflow.ellipsis),
-                ]),
-              ),
-              Chip(
-                visualDensity: VisualDensity.compact,
-                backgroundColor: color.withOpacity(.12),
-                label: Text(status.replaceAll('_', ' '), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _openDetails(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.receipt_long_rounded, color: color, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _itemSummary(row),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: Colors.grey[700], height: 1.3),
+                            ),
+                          ]
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                          status.replaceAll('_', ' ').toUpperCase(),
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          )
+                      ),
+                    ),
+                  ]),
+              const SizedBox(height: 16),
+              const Divider(height: 1, thickness: 1),
+              const SizedBox(height: 12),
+              Row(children: [
+                Icon(Icons.access_time_rounded, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 6),
+                Expanded(
+                    child: Text(
+                        _date(row['created_at']),
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w500)
+                    )
+                ),
+                Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey[400]),
+              ]),
             ]),
-            const Divider(height: 24),
-            Row(children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.black54),
-              const SizedBox(width: 6),
-              Expanded(child: Text(_date(row['created_at']), style: const TextStyle(color: Colors.black54))),
-              TextButton.icon(
-                onPressed: () => _openDetails(context),
-                icon: const Icon(Icons.history),
-                label: const Text('Details'),
-              ),
-            ]),
-          ]),
+          ),
         ),
       ),
     );
@@ -310,6 +500,350 @@ class _RequisitionTile extends StatelessWidget {
           id: _intFrom(row['id']),
           fallback: row,
         ),
+      ),
+    );
+  }
+}
+
+class _DemandLine {
+  int? categoryId;
+  int? productId;
+  int qty = 1;
+  String? purpose;
+}
+
+class _DemandLineForm extends StatefulWidget {
+  const _DemandLineForm({
+    required this.index,
+    required this.line,
+    required this.categories,
+    required this.products,
+    required this.purposes,
+    this.onRemove,
+  });
+
+  final int index;
+  final _DemandLine line;
+  final List<Map<String, dynamic>> categories;
+  final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> purposes;
+  final VoidCallback? onRemove;
+
+  @override
+  State<_DemandLineForm> createState() => _DemandLineFormState();
+}
+
+class _DemandLineFormState extends State<_DemandLineForm> {
+  @override
+  Widget build(BuildContext context) {
+    final productOptions = _filteredProductOptions();
+    final categoryOptions = _categoryOptions(widget.categories, widget.products);
+    final purposeOptions = _purposeOptions(widget.purposes);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Item #${widget.index + 1}',
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (widget.onRemove != null)
+                  InkWell(
+                    onTap: widget.onRemove,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Icon(Icons.close_rounded, color: Colors.red[400], size: 22),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 720;
+
+                final categoryField = _idDropdown(
+                  label: 'Category',
+                  value: _containsId(categoryOptions, widget.line.categoryId) ? widget.line.categoryId : null,
+                  rows: categoryOptions,
+                  icon: Icons.category_outlined,
+                  onChanged: (value) => setState(() {
+                    widget.line.categoryId = value;
+                    widget.line.productId = null;
+                  }),
+                );
+
+                final productField = _idDropdown(
+                  label: 'Select Product',
+                  value: _containsId(productOptions, widget.line.productId) ? widget.line.productId : null,
+                  rows: productOptions,
+                  icon: Icons.inventory_2_outlined,
+                  onChanged: (value) => setState(() => widget.line.productId = value),
+                );
+
+                final qtyField = SizedBox(
+                  width: isNarrow ? double.infinity : 110,
+                  child: TextFormField(
+                    initialValue: '${widget.line.qty}',
+                    decoration: InputDecoration(
+                      labelText: 'Qty',
+                      prefixIcon: const Icon(Icons.format_list_numbered, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) => widget.line.qty = int.tryParse(value) ?? 1,
+                  ),
+                );
+
+                final purposeField = purposeOptions.isEmpty
+                    ? TextFormField(
+                  initialValue: widget.line.purpose,
+                  decoration: InputDecoration(
+                    labelText: 'Purpose',
+                    prefixIcon: const Icon(Icons.help_outline, size: 20),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onChanged: (value) => widget.line.purpose = value,
+                )
+                    : DropdownButtonFormField<String>(
+                  value: purposeOptions.contains(widget.line.purpose) ? widget.line.purpose : null,
+                  decoration: InputDecoration(
+                    labelText: 'Purpose',
+                    prefixIcon: const Icon(Icons.help_outline, size: 20),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  isExpanded: true,
+                  items: purposeOptions.map((p) =>
+                      DropdownMenuItem(value: p, child: Text(p, overflow: TextOverflow.ellipsis))
+                  ).toList(),
+                  onChanged: (value) => setState(() => widget.line.purpose = value),
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    children: [
+                      categoryField,
+                      const SizedBox(height: 12),
+                      productField,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(flex: 3, child: qtyField),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 7, child: purposeField),
+                        ],
+                      )
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: categoryField),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 2, child: productField),
+                    const SizedBox(width: 12),
+                    qtyField,
+                    const SizedBox(width: 12),
+                    Expanded(child: purposeField),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _idDropdown({
+    required String label,
+    required int? value,
+    required List<Map<String, dynamic>> rows,
+    required IconData icon,
+    required ValueChanged<int?> onChanged,
+  }) {
+    return DropdownButtonFormField<int>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      ),
+      isExpanded: true,
+      items: rows.map((row) => DropdownMenuItem(
+          value: _intFrom(row['id']),
+          child: Text(_rowLabel(row), overflow: TextOverflow.ellipsis)
+      )).toList(),
+      onChanged: rows.isEmpty ? null : onChanged,
+    );
+  }
+
+  List<Map<String, dynamic>> _filteredProductOptions() {
+    final products = _optionRows(widget.products);
+    final categoryId = widget.line.categoryId;
+    if (categoryId == null) return products;
+    return products.where((product) {
+      final productCategory = product['category_id'] ??
+          (product['category'] is Map ? (product['category'] as Map)['id'] : null);
+      final parsedCategoryId = _intFrom(productCategory);
+      return parsedCategoryId == 0 || parsedCategoryId == categoryId;
+    }).toList();
+  }
+}
+
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({required this.stats});
+
+  final Map<String, int> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width > 900 ? 4 : 2;
+        final isCompact = width < 420;
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: isCompact ? 1.3 : 1.5,
+          children: [
+            _StatCard(
+              title: 'Total Requests',
+              value: stats['total'] ?? 0,
+              gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF2563EB)]),
+              icon: Icons.description_rounded,
+            ),
+            _StatCard(
+              title: 'Processing',
+              value: stats['processing'] ?? 0,
+              gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFD97706)]),
+              icon: Icons.pending_actions_rounded,
+            ),
+            _StatCard(
+              title: 'Completed',
+              value: stats['completed'] ?? 0,
+              gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF059669)]),
+              icon: Icons.check_circle_rounded,
+            ),
+            _StatCard(
+              title: 'Returned',
+              value: stats['returned'] ?? 0,
+              gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFDC2626)]),
+              icon: Icons.keyboard_return_rounded,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.gradient,
+    required this.icon
+  });
+
+  final String title;
+  final int value;
+  final LinearGradient gradient;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: gradient.colors.last.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            )
+          ]
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+            ],
+          ),
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -344,9 +878,9 @@ class _MyRequisitionsHeader extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -364,82 +898,6 @@ class _MyRequisitionsHeader extends StatelessWidget {
   }
 }
 
-class _FilterCard extends StatelessWidget {
-  const _FilterCard({required this.status, required this.onQueryChanged, required this.onStatusChanged});
-
-  final String status;
-  final ValueChanged<String> onQueryChanged;
-  final ValueChanged<String?> onStatusChanged;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 520;
-          final search = TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Search requisition no or product name...',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: onQueryChanged,
-          );
-          final statusDropdown = DropdownButtonFormField<String>(
-            value: status,
-            decoration: const InputDecoration(
-              labelText: 'Status',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('All Status')),
-              DropdownMenuItem(value: 'pending', child: Text('Pending')),
-              DropdownMenuItem(value: 'returned', child: Text('Returned')),
-              DropdownMenuItem(value: 'distributed', child: Text('Distributed')),
-            ],
-            onChanged: onStatusChanged,
-          );
-
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: isNarrow
-                  ? Column(
-                      children: [
-                        search,
-                        const SizedBox(height: 12),
-                        statusDropdown,
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: search),
-                        const SizedBox(width: 12),
-                        SizedBox(width: 220, child: statusDropdown),
-                      ],
-                    ),
-              ),
-            ),
-          );
-        },
-      );
-}
-
-class _EmptyRequisitionCard extends StatelessWidget {
-  const _EmptyRequisitionCard();
-
-  @override
-  Widget build(BuildContext context) => const Card(
-        child: Padding(
-          padding: EdgeInsets.all(28),
-          child: Column(children: [
-            Icon(Icons.inbox_outlined, size: 48, color: Colors.black38),
-            SizedBox(height: 12),
-            Text('No requisitions found for this filter.'),
-          ]),
-        ),
-      );
-}
-
-
 class _WorkflowInfoCard extends StatelessWidget {
   const _WorkflowInfoCard({required this.settings, this.requesterDepartmentId});
 
@@ -452,12 +910,14 @@ class _WorkflowInfoCard extends StatelessWidget {
     final title = settings.isCentralized ? 'Centralized Store Workflow' : 'Departmental Store Workflow';
     final message = settings.isCentralized
         ? (isCentralRequester
-            ? 'আপনি central store department-এর user; requisition সরাসরি Central Store Initiator queue-তে pending হিসেবে যাবে।'
-            : 'আপনার requisition আগে নিজের department director review-তে যাবে, তারপর Central Store Initiator queue-তে যাবে।')
+        ? 'আপনি central store department-এর user; requisition সরাসরি Central Store Initiator queue-তে pending হিসেবে যাবে।'
+        : 'আপনার requisition আগে নিজের department director review-তে যাবে, তারপর Central Store Initiator queue-তে যাবে।')
         : 'আপনার requisition নিজের department-এর Initiator queue-তে pending হিসেবে যাবে।';
 
     return Card(
       color: (settings.isCentralized ? Colors.deepPurple : Colors.teal).withOpacity(.08),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -472,257 +932,47 @@ class _WorkflowInfoCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(message),
           const SizedBox(height: 8),
-          Text('Approval flow: ${_approvalRoleLabels(settings.approvalFlowRoles).join(' → ')}'),
+          Text('Approval flow: ${_approvalRoleLabels(settings.approvalFlowRoles).join(' → ')}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
         ]),
       ),
     );
   }
 }
 
-
-class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({required this.stats});
-
-  final Map<String, int> stats;
+class _EmptyRequisitionCard extends StatelessWidget {
+  const _EmptyRequisitionCard();
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final crossAxisCount = width > 900 ? 4 : 2;
-        final isCompact = width < 420;
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: isCompact ? 10 : 16,
-          mainAxisSpacing: isCompact ? 10 : 16,
-          childAspectRatio: isCompact ? 1.35 : 1.85,
-          children: [
-            _Card(
-              'Total Submitted Requests',
-              stats['total'] ?? 0,
-              Colors.blue,
-              Icons.description_outlined,
-            ),
-            _Card(
-              'Processing (Pending)',
-              stats['processing'] ?? 0,
-              Colors.orange,
-              Icons.schedule,
-            ),
-            _Card(
-              'Completed (Distributed)',
-              stats['completed'] ?? 0,
-              Colors.green,
-              Icons.check_circle_outline,
-            ),
-            _Card('Returned', stats['returned'] ?? 0, Colors.red, Icons.reply),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => const Card(
+    elevation: 0,
+    child: Padding(
+      padding: EdgeInsets.all(28),
+      child: Column(children: [
+        Icon(Icons.inbox_outlined, size: 48, color: Colors.black38),
+        SizedBox(height: 12),
+        Text('No requisitions found for this filter.'),
+      ]),
+    ),
+  );
 }
 
-class _Card extends StatelessWidget {
-  const _Card(this.title, this.value, this.color, this.icon);
-
-  final String title;
-  final int value;
-  final Color color;
-  final IconData icon;
-
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message});
+  final String message;
   @override
   Widget build(BuildContext context) => Card(
-        color: color.withOpacity(.08),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: Icon(icon, color: color.withOpacity(.45), size: 26),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$value',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-}
-class _ErrorCard extends StatelessWidget { const _ErrorCard({required this.message}); final String message; @override Widget build(BuildContext context)=>Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red)))); }
-class _DemandLine {
-  int? categoryId;
-  int? productId;
-  int qty = 1;
-  String? purpose;
+      elevation: 0,
+      color: Colors.red.withOpacity(0.1),
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(message, style: const TextStyle(color: Colors.red))
+      )
+  );
 }
 
-class _DemandLineForm extends StatefulWidget {
-  const _DemandLineForm({
-    required this.line,
-    required this.categories,
-    required this.products,
-    required this.purposes,
-    this.onRemove,
-  });
-
-  final _DemandLine line;
-  final List<Map<String, dynamic>> categories;
-  final List<Map<String, dynamic>> products;
-  final List<Map<String, dynamic>> purposes;
-  final VoidCallback? onRemove;
-
-  @override
-  State<_DemandLineForm> createState() => _DemandLineFormState();
-}
-
-class _DemandLineFormState extends State<_DemandLineForm> {
-  @override
-  Widget build(BuildContext context) {
-    final productOptions = _filteredProductOptions();
-    final categoryOptions = _categoryOptions(widget.categories, widget.products);
-    final purposeOptions = _purposeOptions(widget.purposes);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 720;
-          final fields = <Widget>[
-            _fieldBox(
-              isNarrow,
-              _idDropdown(
-                label: 'Category',
-                value: _containsId(categoryOptions, widget.line.categoryId) ? widget.line.categoryId : null,
-                rows: categoryOptions,
-                onChanged: (value) => setState(() {
-                  widget.line.categoryId = value;
-                  widget.line.productId = null;
-                }),
-              ),
-            ),
-            _fieldBox(
-              isNarrow,
-              _idDropdown(
-                label: 'Item Name',
-                value: _containsId(productOptions, widget.line.productId) ? widget.line.productId : null,
-                rows: productOptions,
-                onChanged: (value) => setState(() => widget.line.productId = value),
-              ),
-              flex: 2,
-            ),
-            SizedBox(
-              width: isNarrow ? double.infinity : 96,
-              child: TextFormField(
-                initialValue: '${widget.line.qty}',
-                decoration: const InputDecoration(labelText: 'Qty'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) => widget.line.qty = int.tryParse(value) ?? 1,
-              ),
-            ),
-            _fieldBox(
-              isNarrow,
-              purposeOptions.isEmpty
-                  ? TextFormField(
-                      initialValue: widget.line.purpose,
-                      decoration: const InputDecoration(labelText: 'Purpose'),
-                      onChanged: (value) => widget.line.purpose = value,
-                    )
-                  : DropdownButtonFormField<String>(
-                      value: purposeOptions.contains(widget.line.purpose) ? widget.line.purpose : null,
-                      decoration: const InputDecoration(labelText: 'Purpose'),
-                      isExpanded: true,
-                      items: [
-                        for (final purpose in purposeOptions)
-                          DropdownMenuItem(value: purpose, child: Text(purpose, overflow: TextOverflow.ellipsis)),
-                      ],
-                      onChanged: (value) => setState(() => widget.line.purpose = value),
-                    ),
-            ),
-            if (widget.onRemove != null) IconButton(onPressed: widget.onRemove, icon: const Icon(Icons.delete_outline)),
-          ];
-
-          if (isNarrow) {
-            return Column(
-              children: [
-                for (var i = 0; i < fields.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 12),
-                  fields[i],
-                ],
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < fields.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                fields[i],
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  List<Map<String, dynamic>> _filteredProductOptions() {
-    final products = _optionRows(widget.products);
-    final categoryId = widget.line.categoryId;
-    if (categoryId == null) return products;
-    return products.where((product) {
-      final productCategory = product['category_id'] ??
-          (product['category'] is Map ? (product['category'] as Map)['id'] : null);
-      final parsedCategoryId = _intFrom(productCategory);
-      return parsedCategoryId == 0 || parsedCategoryId == categoryId;
-    }).toList();
-  }
-
-  Widget _fieldBox(bool isNarrow, Widget child, {int flex = 1}) {
-    if (isNarrow) return SizedBox(width: double.infinity, child: child);
-    return Expanded(flex: flex, child: child);
-  }
-
-  Widget _idDropdown({
-    required String label,
-    required int? value,
-    required List<Map<String, dynamic>> rows,
-    required ValueChanged<int?> onChanged,
-  }) {
-    return DropdownButtonFormField<int>(
-      value: value,
-      decoration: InputDecoration(labelText: label),
-      isExpanded: true,
-      items: [
-        for (final row in rows)
-          DropdownMenuItem(value: _intFrom(row['id']), child: Text(_rowLabel(row), overflow: TextOverflow.ellipsis)),
-      ],
-      onChanged: rows.isEmpty ? null : onChanged,
-    );
-  }
-}
+// -----------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
 
 List<Map<String, dynamic>> _optionRows(List<Map<String, dynamic>> rows) {
   final seen = <int>{};
@@ -742,9 +992,9 @@ bool _containsId(List<Map<String, dynamic>> rows, int? id) {
 }
 
 List<Map<String, dynamic>> _categoryOptions(
-  List<Map<String, dynamic>> categories,
-  List<Map<String, dynamic>> products,
-) {
+    List<Map<String, dynamic>> categories,
+    List<Map<String, dynamic>> products,
+    ) {
   final options = _optionRows(categories);
   if (options.isNotEmpty) return options;
 
@@ -794,8 +1044,6 @@ List<Map<String, dynamic>> _asyncRows(AsyncValue<List<Map<String, dynamic>>> val
     error: (_, _) => const [],
   );
 }
-
-
 
 String _roleLabel(String role) {
   if (role == 'assistant_director') return 'Assistant Director';
@@ -861,9 +1109,39 @@ List<String> _approvalRoleLabels(List<String> roles) {
   return labels;
 }
 
-List<Map<String, dynamic>> _rows(dynamic data) { final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data; if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); if (payload is Map) { final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions']; if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList(); return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList(); } return const []; }
+List<Map<String, dynamic>> _rows(dynamic data) {
+  final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data;
+  if (payload is List) return payload.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+  if (payload is Map) {
+    final nested = payload['data'] ?? payload['items'] ?? payload['results'] ?? payload['categories'] ?? payload['products'] ?? payload['purposes'] ?? payload['requisitions'];
+    if (nested is List) return nested.whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+    return payload.entries.where((entry) => entry.value is List).expand((entry) => (entry.value as List).whereType<Map>()).map((e)=>Map<String,dynamic>.from(e)).toList();
+  }
+  return const [];
+}
+
 int _intFrom(dynamic v)=> v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-Map<String,int> _statsFromRows(List<Map<String,dynamic>> rows)=> {'total': rows.length, 'processing': rows.where((r)=>_processingStatuses.contains('${r['status']}'.toLowerCase())).length, 'completed': rows.where((r)=>'${r['status']}'.toLowerCase()=='distributed').length, 'returned': rows.where((r)=>'${r['status']}'.toLowerCase()=='returned').length};
-String _date(dynamic value){ final d=DateTime.tryParse('$value'); return d==null ? '-' : DateFormat('dd MMM, yyyy hh:mm a').format(d.toLocal()); }
-String _itemSummary(Map<String,dynamic> r){ final items=_rows(r['items'] ?? r['requisition_items']); if(items.isEmpty) return _productName(r); return items.map(_productName).take(2).join(', '); }
-String _productName(Map<String,dynamic> r){ final p=r['product']; if(p is Map) return '${p['name'] ?? p['name_en'] ?? p['title'] ?? 'Item'}'; return '${r['product_name'] ?? r['item_name'] ?? r['name'] ?? 'Item'}'; }
+
+Map<String,int> _statsFromRows(List<Map<String,dynamic>> rows)=> {
+  'total': rows.length,
+  'processing': rows.where((r)=>_processingStatuses.contains('${r['status']}'.toLowerCase())).length,
+  'completed': rows.where((r)=>'${r['status']}'.toLowerCase()=='distributed').length,
+  'returned': rows.where((r)=>'${r['status']}'.toLowerCase()=='returned').length
+};
+
+String _date(dynamic value){
+  final d=DateTime.tryParse('$value');
+  return d==null ? '-' : DateFormat('dd MMM, yyyy hh:mm a').format(d.toLocal());
+}
+
+String _itemSummary(Map<String,dynamic> r){
+  final items=_rows(r['items'] ?? r['requisition_items']);
+  if(items.isEmpty) return _productName(r);
+  return items.map(_productName).take(2).join(', ');
+}
+
+String _productName(Map<String,dynamic> r){
+  final p=r['product'];
+  if(p is Map) return '${p['name'] ?? p['name_en'] ?? p['title'] ?? 'Item'}';
+  return '${r['product_name'] ?? r['item_name'] ?? r['name'] ?? 'Item'}';
+}
