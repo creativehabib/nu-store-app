@@ -75,12 +75,17 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
       error: (_, _) => const <String, dynamic>{},
     );
 
+    final queueColors = _QueueColors.of(context);
+
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      backgroundColor: queueColors.background,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w700)),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: queueColors.primary,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(requisitionQueueProvider(widget.queue).future),
@@ -171,6 +176,40 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
   }
 }
 
+class _QueueColors {
+  const _QueueColors({
+    required this.primary,
+    required this.primaryDark,
+    required this.primarySoft,
+    required this.background,
+    required this.card,
+    required this.border,
+    required this.fieldFill,
+  });
+
+  final Color primary;
+  final Color primaryDark;
+  final Color primarySoft;
+  final Color background;
+  final Color card;
+  final Color border;
+  final Color fieldFill;
+
+  static _QueueColors of(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final primary = scheme.primary;
+    return _QueueColors(
+      primary: primary,
+      primaryDark: const Color(0xFF1E3A8A),
+      primarySoft: primary.withOpacity(.10),
+      background: const Color(0xFFF1F5F9),
+      card: Colors.white,
+      border: const Color(0xFFD8E2F0),
+      fieldFill: const Color(0xFFF8FAFC),
+    );
+  }
+}
+
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({required this.title, required this.rows});
 
@@ -179,30 +218,100 @@ class _QueueHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Requisition Overview',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    final colors = _QueueColors.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.primary, colors.primaryDark],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Review requisitions, stock demand, and distribution-ready items.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _StatusPill(label: 'Pending', count: _countStatus(rows, 'pending'), color: const Color(0xFFF59E0B)),
-            _StatusPill(label: 'Returned', count: _countStatus(rows, 'returned'), color: const Color(0xFFEF4444)),
-            _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF16A34A)),
-            _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF4F46E5)),
-          ],
-        ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: colors.primary.withOpacity(.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.16),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(.22)),
+                ),
+                child: const Icon(Icons.forward_to_inbox, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Review, match stock demand, and forward requisitions smoothly.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(.82)),
+                    ),
+                  ],
+                ),
+              ),
+              _HeaderTotalBadge(count: rows.length),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _StatusPill(label: 'Pending', count: _countStatus(rows, 'pending'), color: const Color(0xFFF59E0B)),
+              _StatusPill(label: 'Returned', count: _countStatus(rows, 'returned'), color: const Color(0xFFEF4444)),
+              _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF22C55E)),
+              _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF818CF8)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderTotalBadge extends StatelessWidget {
+  const _HeaderTotalBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(.24)),
+      ),
+      child: Column(
+        children: [
+          Text('$count', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 22)),
+          Text('Total', style: TextStyle(color: Colors.white.withOpacity(.78), fontSize: 12)),
+        ],
+      ),
     );
   }
 }
@@ -219,9 +328,9 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(.1),
+        color: Colors.white.withOpacity(.94),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(.3)),
+        border: Border.all(color: color.withOpacity(.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -257,11 +366,14 @@ class _QueueFilters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _QueueColors.of(context);
+
     return Card(
+      color: colors.card,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -276,7 +388,7 @@ class _QueueFilters extends StatelessWidget {
                 prefixIcon: const Icon(Icons.search),
                 hintText: 'Search requisition, applicant, item...',
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                fillColor: colors.fieldFill,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
@@ -291,7 +403,7 @@ class _QueueFilters extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'Filter by Status',
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                fillColor: colors.fieldFill,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
@@ -304,6 +416,8 @@ class _QueueFilters extends StatelessWidget {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                foregroundColor: colors.primaryDark,
+                backgroundColor: colors.primarySoft,
               ),
             );
 
@@ -363,18 +477,21 @@ class _QueueTable extends ConsumerWidget {
       );
     }
 
+    final colors = _QueueColors.of(context);
+
     // Desktop View (Data Table)
     return Card(
+      color: colors.card,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5)),
+          headingRowColor: MaterialStateProperty.all(colors.primarySoft),
           dataRowMaxHeight: 70,
           columns: const [
             DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -421,11 +538,14 @@ class _RequisitionMobileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = _QueueColors.of(context);
+
     return Card(
+      color: colors.card,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -439,7 +559,7 @@ class _RequisitionMobileCard extends StatelessWidget {
                 _StatusBadge(status: '${row['status'] ?? _queueStatus(queue)}'),
               ],
             ),
-            const Divider(height: 24),
+            Divider(height: 24, color: colors.border),
             Row(
               children: [
                 Expanded(child: _ApplicantCell(row: row)),
