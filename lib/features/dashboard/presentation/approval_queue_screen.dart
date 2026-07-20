@@ -10,7 +10,7 @@ import 'requisition_workflow_settings.dart';
 
 final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, queue) async {
   final dio = ref.watch(apiClientProvider).dio;
-  final status = _queueStatus(queue);
+  final statuses = _queueStatuses(queue);
   final attempts = <_HttpAttempt>[
     _HttpAttempt('GET', '${ApiRoutes.requisitionWorkflow}/queue/$queue'),
     _HttpAttempt('GET', '${ApiRoutes.workflowRequisitions}/queue/$queue'),
@@ -20,11 +20,22 @@ final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>
 
   for (final attempt in attempts) {
     try {
-      final response = await dio.get(
-        attempt.path,
-        queryParameters: {'queue': queue, 'status': status, 'per_page': 25},
-      );
-      return _queueRows(response.data);
+      final rowsById = <String, Map<String, dynamic>>{};
+      for (final status in statuses) {
+        try {
+          final response = await dio.get(
+            attempt.path,
+            queryParameters: {'queue': queue, 'status': status, 'per_page': 100},
+          );
+          for (final row in _queueRows(response.data)) {
+            rowsById[_queueRowKey(row)] = row;
+          }
+        } on DioException catch (error) {
+          if (_shouldTryNextStatus(error)) continue;
+          rethrow;
+        }
+      }
+      return rowsById.values.toList();
     } on DioException catch (error) {
       if (_shouldTryNextRoute(error)) continue;
       rethrow;
@@ -571,6 +582,27 @@ String _queueStatus(String queue) {
   return 'pending';
 }
 
+List<String> _queueStatuses(String queue) {
+  if (queue == 'initiator') {
+    return const [
+      'pending',
+      'returned',
+      'director_approved',
+      'ready',
+      'ready_for_print',
+      'ready_for_distribute',
+      'distributed',
+    ];
+  }
+  return [_queueStatus(queue)];
+}
+
+String _queueRowKey(Map<String, dynamic> row) {
+  final id = row['id'] ?? row['requisition_id'];
+  if (id != null) return 'id:$id';
+  return 'req:${row['requisition_no'] ?? row.hashCode}';
+}
+
 _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
   if (queue == 'initiator') {
     final nextRole = settings.approvalFlowRoles.isEmpty ? 'assistant_director' : settings.approvalFlowRoles.first;
@@ -665,6 +697,11 @@ Future<void> _sendRequisitionAction(
 bool _shouldTryNextRoute(DioException error) {
   final statusCode = error.response?.statusCode;
   return statusCode == 404 || statusCode == 405;
+}
+
+bool _shouldTryNextStatus(DioException error) {
+  final statusCode = error.response?.statusCode;
+  return statusCode == 400 || statusCode == 422;
 }
 
 String _actionErrorMessage(Object error) {
