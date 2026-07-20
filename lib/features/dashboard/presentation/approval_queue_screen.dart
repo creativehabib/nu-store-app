@@ -76,46 +76,78 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      appBar: AppBar(
+        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(requisitionQueueProvider(widget.queue).future),
         child: items.when(
           data: (rows) {
             final filteredRows = _filterRows(rows);
-            if (rows.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.all(24),
-                children: const [Center(child: Text('No pending requisitions found.'))],
-              );
-            }
-
-            return ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                _QueueHeader(title: widget.title, rows: rows),
-                const SizedBox(height: 20),
-                _QueueFilters(
-                  controller: _searchController,
-                  statusFilter: _statusFilter,
-                  statuses: _statusOptions(rows),
-                  onSearchChanged: (_) => setState(() {}),
-                  onStatusChanged: (value) => setState(() => _statusFilter = value ?? 'All Statuses'),
-                  onClear: () => setState(() {
-                    _searchController.clear();
-                    _statusFilter = 'All Statuses';
-                  }),
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    child: _QueueHeader(title: widget.title, rows: rows),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _QueueTable(
-                  rows: filteredRows,
-                  queue: widget.queue,
-                  settings: workflowSettings,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _QueueFilters(
+                      controller: _searchController,
+                      statusFilter: _statusFilter,
+                      statuses: _statusOptions(rows),
+                      onSearchChanged: (_) => setState(() {}),
+                      onStatusChanged: (value) => setState(() => _statusFilter = value ?? 'All Statuses'),
+                      onClear: () => setState(() {
+                        _searchController.clear();
+                        _statusFilter = 'All Statuses';
+                      }),
+                    ),
+                  ),
                 ),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                if (filteredRows.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('No pending requisitions found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    sliver: SliverToBoxAdapter(
+                      child: _QueueTable(
+                        rows: filteredRows,
+                        queue: widget.queue,
+                        settings: workflowSettings,
+                      ),
+                    ),
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
               ],
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => ListView(padding: const EdgeInsets.all(24), children: [_QueueErrorCard(message: '$error')]),
+          error: (error, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: _QueueErrorCard(message: '$error'),
+            ),
+          ),
         ),
       ),
     );
@@ -147,26 +179,29 @@ class _QueueHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Text(
+          'Requisition Overview',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Review requisitions, stock demand, and distribution-ready items.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            const Text('Review requisitions, stock demand, and distribution-ready items from one table.'),
+            _StatusPill(label: 'Pending', count: _countStatus(rows, 'pending'), color: const Color(0xFFF59E0B)),
+            _StatusPill(label: 'Returned', count: _countStatus(rows, 'returned'), color: const Color(0xFFEF4444)),
+            _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF16A34A)),
+            _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF4F46E5)),
           ],
         ),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          _StatusPill(label: 'Pending', count: _countStatus(rows, 'pending'), color: const Color(0xFFF59E0B)),
-          _StatusPill(label: 'Returned', count: _countStatus(rows, 'returned'), color: const Color(0xFFEF4444)),
-          _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF16A34A)),
-          _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF4F46E5)),
-        ]),
       ],
     );
   }
@@ -181,9 +216,24 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      backgroundColor: color.withOpacity(.12),
-      label: Text('$label: $count', style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(radius: 4, backgroundColor: color),
+          const SizedBox(width: 8),
+          Text(
+            '$label: $count',
+            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -208,32 +258,76 @@ class _QueueFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final narrow = constraints.maxWidth < 720;
-            final search = TextField(
+            final narrow = constraints.maxWidth < 600;
+
+            final searchField = TextField(
               controller: controller,
               onChanged: onSearchChanged,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Requisition no, applicant, PF, department, or product...',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search requisition, applicant, item...',
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             );
-            final status = DropdownButtonFormField<String>(
+
+            final statusField = DropdownButtonFormField<String>(
               value: statusFilter,
+              isExpanded: true,
+              icon: const Icon(Icons.filter_list),
               items: statuses.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
               onChanged: onStatusChanged,
-              decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Filter by Status',
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
             );
-            final clear = OutlinedButton.icon(onPressed: onClear, icon: const Icon(Icons.close), label: const Text('Clear'));
+
+            final clearBtn = FilledButton.tonalIcon(
+              onPressed: onClear,
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Clear'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            );
 
             if (narrow) {
-              return Column(children: [search, const SizedBox(height: 12), status, const SizedBox(height: 12), Align(alignment: Alignment.centerRight, child: clear)]);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  searchField,
+                  const SizedBox(height: 12),
+                  statusField,
+                  const SizedBox(height: 12),
+                  clearBtn,
+                ],
+              );
             }
-            return Row(children: [Expanded(flex: 4, child: search), const SizedBox(width: 12), Expanded(child: status), const SizedBox(width: 12), clear]);
+            return Row(
+              children: [
+                Expanded(flex: 3, child: searchField),
+                const SizedBox(width: 12),
+                Expanded(flex: 2, child: statusField),
+                const SizedBox(width: 12),
+                clearBtn,
+              ],
+            );
           },
         ),
       ),
@@ -250,39 +344,116 @@ class _QueueTable extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (rows.isEmpty) {
-      return const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No requisitions match this filter.'))));
+    final action = _queueAction(queue, RequisitionWorkflowSettings.fromSettings(settings ?? const {}));
+    final isDesktop = MediaQuery.sizeOf(context).width > 800;
+
+    // Mobile View (Cards)
+    if (!isDesktop) {
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: rows.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _RequisitionMobileCard(
+          row: rows[index],
+          queue: queue,
+          settings: settings,
+          action: action,
+        ),
+      );
     }
 
-    final action = _queueAction(queue, RequisitionWorkflowSettings.fromSettings(settings ?? const {}));
+    // Desktop View (Data Table)
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
+          headingRowColor: MaterialStateProperty.all(Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5)),
+          dataRowMaxHeight: 70,
           columns: const [
-            DataColumn(label: Text('#')),
-            DataColumn(label: Text('REQUISITION')),
-            DataColumn(label: Text('APPLICANT & DEPARTMENT')),
-            DataColumn(label: Text('ITEMS SUMMARY')),
-            DataColumn(label: Text('DEMAND')),
-            DataColumn(label: Text('AGE')),
-            DataColumn(label: Text('STATUS')),
-            DataColumn(label: Text('ACTION')),
+            DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('REQUISITION', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('APPLICANT', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('ITEMS', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('DEMAND', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
-          rows: [
-            for (var index = 0; index < rows.length; index++)
-              DataRow(cells: [
-                DataCell(Text('${index + 1}')),
-                DataCell(_RequisitionCell(row: rows[index])),
-                DataCell(_ApplicantCell(row: rows[index])),
-                DataCell(_ItemsCell(row: rows[index])),
-                DataCell(_DemandCell(row: rows[index])),
-                DataCell(Text(_queueAge(rows[index]))),
-                DataCell(_StatusBadge(status: '${rows[index]['status'] ?? _queueStatus(queue)}')),
-                DataCell(_ActionCell(row: rows[index], queue: queue, settings: settings, action: action)),
-              ]),
+          rows: List.generate(rows.length, (index) {
+            final row = rows[index];
+            return DataRow(cells: [
+              DataCell(Text('${index + 1}')),
+              DataCell(_RequisitionCell(row: row)),
+              DataCell(_ApplicantCell(row: row)),
+              DataCell(_ItemsCell(row: row)),
+              DataCell(_DemandCell(row: row)),
+              DataCell(Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StatusBadge(status: '${row['status'] ?? _queueStatus(queue)}'),
+                  const SizedBox(height: 4),
+                  Text(_queueAge(row).replaceAll('\n', ' '), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              )),
+              DataCell(_ActionCell(row: row, queue: queue, settings: settings, action: action)),
+            ]);
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _RequisitionMobileCard extends StatelessWidget {
+  const _RequisitionMobileCard({required this.row, required this.queue, required this.settings, required this.action});
+
+  final Map<String, dynamic> row;
+  final String queue;
+  final Map<String, dynamic>? settings;
+  final _QueueAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: _RequisitionCell(row: row)),
+                _StatusBadge(status: '${row['status'] ?? _queueStatus(queue)}'),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(child: _ApplicantCell(row: row)),
+                Container(width: 1, height: 40, color: Colors.grey.shade300, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                Expanded(child: _DemandCell(row: row, compact: true)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _ItemsCell(row: row),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: _ActionCell(row: row, queue: queue, settings: settings, action: action),
+            ),
           ],
         ),
       ),
@@ -292,83 +463,113 @@ class _QueueTable extends ConsumerWidget {
 
 class _RequisitionCell extends StatelessWidget {
   const _RequisitionCell({required this.row});
-
   final Map<String, dynamic> row;
 
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold)),
+      Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
       const SizedBox(height: 4),
-      Text(_queueDate(row), style: Theme.of(context).textTheme.bodySmall),
+      Row(
+        children: [
+          const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
+          const SizedBox(width: 4),
+          Text(_queueDate(row), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700)),
+        ],
+      )
     ]);
   }
 }
 
 class _ApplicantCell extends StatelessWidget {
   const _ApplicantCell({required this.row});
-
   final Map<String, dynamic> row;
 
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text(_queueApplicant(row), style: const TextStyle(fontWeight: FontWeight.w600)),
-      const SizedBox(height: 4),
-      Text('PF: ${row['pf_no'] ?? row['pf'] ?? '-'}', style: Theme.of(context).textTheme.bodySmall),
-      Text(_queueDepartment(row), style: Theme.of(context).textTheme.bodySmall),
+      Text(_queueApplicant(row), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+      const SizedBox(height: 2),
+      Text('PF: ${row['pf_no'] ?? row['pf'] ?? '-'} • ${_queueDepartment(row)}',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
     ]);
   }
 }
 
 class _ItemsCell extends StatelessWidget {
   const _ItemsCell({required this.row});
-
   final Map<String, dynamic> row;
 
   @override
   Widget build(BuildContext context) {
     final items = _queueRows(row['items'] ?? row['requisition_items']);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Chip(label: Text(_queueItemSummary(row)), visualDensity: VisualDensity.compact),
-      Text('${items.isEmpty ? 1 : items.length} item(s)', style: Theme.of(context).textTheme.bodySmall),
-    ]);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+          child: Text(
+            _queueItemSummary(row),
+            style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text('${items.isEmpty ? 1 : items.length} item(s)', style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
   }
 }
 
 class _DemandCell extends StatelessWidget {
-  const _DemandCell({required this.row});
-
+  const _DemandCell({required this.row, this.compact = false});
   final Map<String, dynamic> row;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('${_queueDemand(row)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      Text(_queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
-    ]);
+    return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        children: [
+          Text(
+              '${_queueDemand(row)}',
+              style: TextStyle(fontSize: compact ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)
+          ),
+          Text(_queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
+        ]
+    );
   }
 }
 
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
-
   final String status;
 
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(status);
-    return Chip(
-      label: Text(_titleCase(status), style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-      backgroundColor: color.withOpacity(.12),
-      visualDensity: VisualDensity.compact,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+          _titleCase(status),
+          style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)
+      ),
     );
   }
 }
 
 class _ActionCell extends StatelessWidget {
   const _ActionCell({required this.row, required this.queue, required this.settings, required this.action});
-
   final Map<String, dynamic> row;
   final String queue;
   final Map<String, dynamic>? settings;
@@ -380,18 +581,20 @@ class _ActionCell extends StatelessWidget {
     final printReady = status.contains('distributed') || status.contains('director_approved');
     return printReady
         ? OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _queueInt(row['id']), fallback: row))),
-            icon: const Icon(Icons.print, size: 16),
-            label: const Text('Print & Distribute'),
-          )
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _queueInt(row['id']), fallback: row))),
+      icon: const Icon(Icons.print_outlined, size: 18),
+      label: const Text('Print'),
+      style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+    )
         : FilledButton.icon(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => _DetermineQuantityDialog(row: row, queue: queue, settings: settings, action: action),
-            ),
-            icon: const Icon(Icons.visibility, size: 16),
-            label: const Text('View & Action'),
-          );
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (_) => _DetermineQuantityDialog(row: row, queue: queue, settings: settings, action: action),
+      ),
+      icon: const Icon(Icons.visibility_outlined, size: 18),
+      label: const Text('Action'),
+      style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+    );
   }
 }
 
@@ -432,65 +635,156 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
-      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      title: Row(children: [
-        Expanded(child: Text('Requisition Details: ${widget.row['requisition_no'] ?? 'REQ-${widget.row['id'] ?? '-'}'}')),
-        IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
-      ]),
-      content: SizedBox(
-        width: 720,
-        child: SingleChildScrollView(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text('Applicant: ${_queueApplicant(widget.row)} (${_queueDepartment(widget.row)})'),
-            const Divider(height: 28),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Item Name')),
-                  DataColumn(label: Text('Current Stock')),
-                  DataColumn(label: Text('Demanded Quantity')),
-                  DataColumn(label: Text('Determine Supply Quantity')),
-                ],
-                rows: [
-                  for (var index = 0; index < _items.length; index++)
-                    DataRow(cells: [
-                      DataCell(_ItemNameWithUnit(item: _items[index])),
-                      DataCell(Text('${_queueCurrentStock(_items[index])}', style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold))),
-                      DataCell(Text('${_queueDemand(_items[index])}')),
-                      DataCell(SizedBox(
-                        width: 120,
-                        child: TextField(
-                          controller: _quantityControllers[index],
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-                        ),
-                      )),
-                    ]),
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        width: isMobile ? double.infinity : 700,
+        constraints: const BoxConstraints(maxHeight: 800),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Action: ${widget.row['requisition_no'] ?? 'REQ-${widget.row['id'] ?? '-'}'}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('${_queueApplicant(widget.row)} • ${_queueDepartment(widget.row)}', style: TextStyle(color: Colors.grey.shade700)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                    style: IconButton.styleFrom(backgroundColor: Colors.grey.shade200),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _remarksController,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Note / Comment (Optional)', hintText: 'e.g., Sufficient in stock...', border: OutlineInputBorder()),
+            const Divider(height: 1),
+            // Body
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                shrinkWrap: true,
+                children: [
+                  Text('Items Requested (${_items.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 16),
+
+                  // Responsive Items List instead of DataTable for better Mobile UX
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          crossAxisAlignment: WrapCrossAlignment.end,
+                          children: [
+                            SizedBox(
+                                width: isMobile ? double.infinity : 200,
+                                child: _ItemNameWithUnit(item: item)
+                            ),
+                            SizedBox(
+                              width: 100,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Stock', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('${_queueCurrentStock(item)}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              width: 100,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Demanded', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('${_queueDemand(item)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              width: 120,
+                              child: TextField(
+                                controller: _quantityControllers[index],
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Supply Qty',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _remarksController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Note / Comment (Optional)',
+                      hintText: 'e.g., Sufficient in stock...',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ]),
+            const Divider(height: 1),
+            // Footer Action
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                      onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+                      child: const Text('Cancel')
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _submitting ? null : _submit,
+                    icon: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_circle_outline),
+                    label: Text(_submitting ? 'Processing...' : widget.action.buttonLabel),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: _submitting ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton.icon(
-          onPressed: _submitting ? null : _submit,
-          icon: const Icon(Icons.check_circle),
-          label: Text(_submitting ? 'Forwarding...' : '${widget.action.buttonLabel} for Approval'),
-        ),
-      ],
     );
   }
 
@@ -541,8 +835,9 @@ class _ItemNameWithUnit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text(_queueProductName(item), style: const TextStyle(fontWeight: FontWeight.bold)),
-      Text(_queueUnit(item), style: Theme.of(context).textTheme.bodySmall),
+      Text(_queueProductName(item), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+      const SizedBox(height: 2),
+      Text('Unit: ${_queueUnit(item)}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600)),
     ]);
   }
 }
@@ -571,7 +866,22 @@ class _QueueErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(message, style: const TextStyle(color: Colors.red))));
+    return Card(
+        color: Colors.red.shade50,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.red.shade200)),
+        child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
+                const SizedBox(height: 12),
+                Text(message, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
+              ],
+            )
+        )
+    );
   }
 }
 
@@ -631,14 +941,14 @@ String _queueRoleLabel(String role) {
 }
 
 Future<void> _sendRequisitionAction(
-  WidgetRef ref, {
-  required int id,
-  required String action,
-  required String nextStatus,
-  String? nextRole,
-  String? remarks,
-  List<Map<String, dynamic>> quantities = const <Map<String, dynamic>>[],
-}) async {
+    WidgetRef ref, {
+      required int id,
+      required String action,
+      required String nextStatus,
+      String? nextRole,
+      String? remarks,
+      List<Map<String, dynamic>> quantities = const <Map<String, dynamic>>[],
+    }) async {
   final dio = ref.read(apiClientProvider).dio;
   final payload = {
     'action': action,
@@ -690,9 +1000,8 @@ Future<void> _sendRequisitionAction(
     }
   }
 
-  throw UnsupportedError('Workflow action API পাওয়া যায়নি। অনুগ্রহ করে অ্যাপ আপডেট/রিফ্রেশ করে আবার চেষ্টা করুন।');
+  throw UnsupportedError('Workflow action API পাওয়া যায়নি। অনুগ্রহ করে অ্যাপ আপডেট/রিফ্রেশ করে আবার চেষ্টা করুন।');
 }
-
 
 bool _shouldTryNextRoute(DioException error) {
   final statusCode = error.response?.statusCode;
@@ -713,12 +1022,11 @@ String _actionErrorMessage(Object error) {
       if (message != null && '$message'.trim().isNotEmpty) return '$message';
     }
     if (error.response?.statusCode == 403) return 'আপনার এই requisition action করার permission নেই।';
-    if (error.response?.statusCode == 422) return 'Forward করার তথ্য সঠিক নয়। Remarks/approval data যাচাই করুন।';
-    if (error.response?.statusCode == 404) return 'Workflow action API পাওয়া যায়নি। অ্যাপটি রিফ্রেশ করে আবার চেষ্টা করুন।';
+    if (error.response?.statusCode == 422) return 'Forward করার তথ্য সঠিক নয়। Remarks/approval data যাচাই করুন।';
+    if (error.response?.statusCode == 404) return 'Workflow action API পাওয়া যায়নি। অ্যাপটি রিফ্রেশ করে আবার চেষ্টা করুন।';
   }
-  return 'Requisition action সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
+  return 'Requisition action সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
 }
-
 
 List<String> _statusOptions(List<Map<String, dynamic>> rows) {
   final statuses = rows.map((row) => '${row['status'] ?? ''}').where((status) => status.trim().isNotEmpty).toSet().toList()..sort();
@@ -763,13 +1071,12 @@ String _queueAge(Map<String, dynamic> row) {
   final parsed = value == null ? null : DateTime.tryParse('$value');
   if (parsed == null) return '-';
   final diff = DateTime.now().difference(parsed);
-  if (diff.inMinutes < 60) return '${diff.inMinutes} minutes\nago';
-  if (diff.inHours < 24) return '${diff.inHours} hours\nago';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} mins\nago';
+  if (diff.inHours < 24) return '${diff.inHours} hrs\nago';
   if (diff.inDays < 7) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'}\nago';
   final weeks = (diff.inDays / 7).floor();
   return '$weeks week${weeks == 1 ? '' : 's'}\nago';
 }
-
 
 String _queueDepartment(Map<String, dynamic> row) {
   final department = row['department'];
@@ -803,6 +1110,7 @@ int _queueCurrentStock(Map<String, dynamic> row) {
   if (product is Map) return _queueInt(product['current_stock'] ?? product['stock'] ?? product['quantity']);
   return _queueInt(row['current_stock'] ?? row['stock'] ?? row['available_stock']);
 }
+
 List<Map<String, dynamic>> _queueRows(dynamic data) {
   final payload = data is Map ? (data['data'] ?? data['items'] ?? data['results'] ?? data) : data;
   if (payload is List) return payload.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
