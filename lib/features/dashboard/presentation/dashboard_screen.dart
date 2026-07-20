@@ -233,20 +233,57 @@ class _InitiatorInsights extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
+            final tiles = [
+              _MetricTile(
+                title: 'New Requisitions',
+                subtitle: 'In your queue',
+                value: pendingAction,
+                icon: Icons.assignment_late_outlined,
+                color: const Color(0xFFF59E0B),
+              ),
+              _MetricTile(
+                title: 'Print & Distribute',
+                subtitle: 'Ready to process',
+                value: printReady + distributeReady,
+                icon: Icons.print_outlined,
+                color: const Color(0xFF16A34A),
+              ),
+              _MetricTile(
+                title: 'Stock Out Products',
+                subtitle: 'Needs attention',
+                value: stockOut,
+                icon: Icons.warning_amber_rounded,
+                color: const Color(0xFFEF4444),
+              ),
+              _MetricTile(
+                title: 'Total Requisitions',
+                subtitle: enabled ? 'System activity' : 'Visible activity',
+                value: total,
+                icon: Icons.file_copy_outlined,
+                color: const Color(0xFF2563EB),
+              ),
+            ];
             final columns = constraints.maxWidth > 760 ? 4 : constraints.maxWidth > 520 ? 2 : 1;
+
+            if (columns == 1) {
+              return Column(
+                children: [
+                  for (var index = 0; index < tiles.length; index++) ...[
+                    tiles[index],
+                    if (index != tiles.length - 1) const SizedBox(height: 12),
+                  ],
+                ],
+              );
+            }
+
             return GridView.count(
               crossAxisCount: columns,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: columns == 1 ? 3.1 : 1.55,
+              childAspectRatio: columns == 2 ? 2.15 : 1.65,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _MetricTile(title: 'New Requisitions', subtitle: 'In your queue', value: pendingAction, icon: Icons.assignment_late_outlined, color: const Color(0xFFF59E0B)),
-                _MetricTile(title: 'Print & Distribute', subtitle: 'Ready to process', value: printReady + distributeReady, icon: Icons.print_outlined, color: const Color(0xFF16A34A)),
-                _MetricTile(title: 'Stock Out Products', subtitle: 'Needs attention', value: stockOut, icon: Icons.warning_amber_rounded, color: const Color(0xFFEF4444)),
-                _MetricTile(title: 'Total Requisitions', subtitle: enabled ? 'System activity' : 'Visible activity', value: total, icon: Icons.file_copy_outlined, color: const Color(0xFF2563EB)),
-              ],
+              children: tiles,
             );
           },
         ),
@@ -280,18 +317,54 @@ class _MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: color.withOpacity(.08),
-      child: Padding(
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: color.withOpacity(.20)),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 112),
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [color.withOpacity(.12), color.withOpacity(.04)],
+          ),
+        ),
         child: Row(
           children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text('$value', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
-              Text(subtitle, style: TextStyle(color: color.withOpacity(.85))),
-            ])),
-            Icon(icon, color: color.withOpacity(.45), size: 38),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1)),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color.withOpacity(.85), fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(14)),
+              child: Icon(icon, color: color.withOpacity(.70), size: 28),
+            ),
           ],
         ),
       ),
