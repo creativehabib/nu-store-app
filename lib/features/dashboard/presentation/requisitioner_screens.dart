@@ -31,9 +31,24 @@ final requisitionerDashboardProvider = FutureProvider<Map<String, int>>((ref) as
   };
 });
 
-final myRequisitionsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final response = await ref.watch(apiClientProvider).dio.get(ApiRoutes.requisitions, queryParameters: {'mine': 1, 'per_page': 25});
-  return _rows(response.data);
+final myRequisitionsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final user = ref.watch(authControllerProvider).user;
+  final response = await ref.watch(apiClientProvider).dio.get(
+    ApiRoutes.requisitions,
+    queryParameters: {
+      'mine': 1,
+      'my_requisitions': 1,
+      'user_id': _currentUserId(user),
+      'per_page': 50,
+    },
+  );
+  final rows = _rows(response.data);
+  final userId = _currentUserId(user);
+  if (userId == null) return rows;
+
+  if (!rows.any(_hasOwnerMetadata)) return rows;
+  return rows.where((row) => _isOwnedBy(row, userId)).toList();
 });
 
 final categoriesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -209,20 +224,20 @@ class _MyRequisitionsScreenState extends ConsumerState<MyRequisitionsScreen> {
     }).toList();
     final stats = _statsFromRows(items);
     return ListView(padding: const EdgeInsets.all(24), children: [
-      Text('My Requisitions (Tracking & History)', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-      const Text('Track every submitted demand, item summary, and approval timeline from one place.'),
-      const Divider(height: 28),
+      _MyRequisitionsHeader(total: items.length),
+      const SizedBox(height: 16),
       _StatsGrid(stats: stats),
       const SizedBox(height: 20),
-      Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-        Row(children: [
-          Expanded(child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search requisition no or product name...'), onChanged: (v) => setState(() => _query = v))),
-          const SizedBox(width: 12),
-          DropdownButton<String>(value: _status, items: const [DropdownMenuItem(value: 'all', child: Text('All Status')), DropdownMenuItem(value: 'pending', child: Text('Pending')), DropdownMenuItem(value: 'returned', child: Text('Returned')), DropdownMenuItem(value: 'distributed', child: Text('Distributed'))], onChanged: (v) => setState(() => _status = v ?? 'all')),
-        ]),
-        const SizedBox(height: 16),
+      _FilterCard(
+        status: _status,
+        onQueryChanged: (value) => setState(() => _query = value),
+        onStatusChanged: (value) => setState(() => _status = value ?? 'all'),
+      ),
+      const SizedBox(height: 12),
+      if (filtered.isEmpty)
+        const _EmptyRequisitionCard()
+      else
         for (final item in filtered) _RequisitionTile(row: item),
-      ]))),
     ]);
   }
 }
@@ -233,23 +248,155 @@ class _RequisitionTile extends StatelessWidget {
   final Map<String, dynamic> row;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        title: Text(
-          '${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget build(BuildContext context) {
+    final status = '${row['status'] ?? 'pending'}';
+    final color = _statusColor(status);
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: color.withOpacity(.22)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _openDetails(context),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(.12),
+                child: Icon(Icons.receipt_long_outlined, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    '${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_itemSummary(row), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              Chip(
+                visualDensity: VisualDensity.compact,
+                backgroundColor: color.withOpacity(.12),
+                label: Text(status.replaceAll('_', ' '), style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+            const Divider(height: 24),
+            Row(children: [
+              const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.black54),
+              const SizedBox(width: 6),
+              Expanded(child: Text(_date(row['created_at']), style: const TextStyle(color: Colors.black54))),
+              TextButton.icon(
+                onPressed: () => _openDetails(context),
+                icon: const Icon(Icons.history),
+                label: const Text('Details'),
+              ),
+            ]),
+          ]),
         ),
-        subtitle: Text("${_date(row['created_at'])}\n${_itemSummary(row)}"),
-        trailing: FilledButton.tonalIcon(
-          icon: const Icon(Icons.history),
-          label: const Text('Details'),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RequisitionDetailsScreen(
-                id: _intFrom(row['id']),
-                fallback: row,
+      ),
+    );
+  }
+
+  void _openDetails(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RequisitionDetailsScreen(
+          id: _intFrom(row['id']),
+          fallback: row,
+        ),
+      ),
+    );
+  }
+}
+
+class _MyRequisitionsHeader extends StatelessWidget {
+  const _MyRequisitionsHeader({required this.total});
+
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF14B8A6)]),
+      ),
+      child: Row(children: [
+        const CircleAvatar(
+          backgroundColor: Colors.white24,
+          child: Icon(Icons.timeline, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('My Requisitions', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            const Text('Only requisitions submitted by you are shown here.', style: TextStyle(color: Colors.white70)),
+          ]),
+        ),
+        Chip(label: Text('$total Total')),
+      ]),
+    );
+  }
+}
+
+class _FilterCard extends StatelessWidget {
+  const _FilterCard({required this.status, required this.onQueryChanged, required this.onStatusChanged});
+
+  final String status;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<String?> onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(runSpacing: 12, spacing: 12, children: [
+            SizedBox(
+              width: 420,
+              child: TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Search requisition no or product name...',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: onQueryChanged,
               ),
             ),
-          ),
+            DropdownButton<String>(
+              value: status,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Status')),
+                DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                DropdownMenuItem(value: 'returned', child: Text('Returned')),
+                DropdownMenuItem(value: 'distributed', child: Text('Distributed')),
+              ],
+              onChanged: onStatusChanged,
+            ),
+          ]),
+        ),
+      );
+}
+
+class _EmptyRequisitionCard extends StatelessWidget {
+  const _EmptyRequisitionCard();
+
+  @override
+  Widget build(BuildContext context) => const Card(
+        child: Padding(
+          padding: EdgeInsets.all(28),
+          child: Column(children: [
+            Icon(Icons.inbox_outlined, size: 48, color: Colors.black38),
+            SizedBox(height: 12),
+            Text('No requisitions found for this filter.'),
+          ]),
         ),
       );
 }
@@ -538,6 +685,44 @@ int? _userDepartmentId(Map<String, dynamic>? user) {
   final value = user['department_id'] ?? user['dept_id'];
   final parsed = _intFrom(value);
   return parsed == 0 ? null : parsed;
+}
+
+int? _currentUserId(Map<String, dynamic>? user) {
+  if (user == null) return null;
+  final parsed = _intFrom(user['id'] ?? user['user_id']);
+  return parsed == 0 ? null : parsed;
+}
+
+bool _isOwnedBy(Map<String, dynamic> row, int userId) {
+  final ownerIds = _ownerIds(row);
+  return ownerIds.isEmpty || ownerIds.contains(userId);
+}
+
+bool _hasOwnerMetadata(Map<String, dynamic> row) => _ownerIds(row).isNotEmpty;
+
+List<int> _ownerIds(Map<String, dynamic> row) {
+  final requester = row['user'] ?? row['requester'] ?? row['created_by_user'];
+  return <int>[
+    _intFrom(row['user_id']),
+    _intFrom(row['requester_id']),
+    _intFrom(row['created_by']),
+    if (requester is Map) _intFrom(requester['id'] ?? requester['user_id']),
+  ]..removeWhere((id) => id == 0);
+}
+
+Color _statusColor(String status) {
+  switch (status.toLowerCase()) {
+    case 'distributed':
+    case 'completed':
+      return Colors.green;
+    case 'returned':
+    case 'rejected':
+      return Colors.red;
+    case 'pending':
+      return Colors.orange;
+    default:
+      return Colors.blue;
+  }
 }
 
 List<String> _approvalRoleLabels(List<String> roles) {

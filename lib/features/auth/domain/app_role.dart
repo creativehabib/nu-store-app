@@ -96,6 +96,8 @@ class RolePermissions {
       AppPermission.viewRequisitionLocation,
     },
     AppRole.initiator: {
+      AppPermission.createRequisition,
+      AppPermission.viewOwnRequisitions,
       AppPermission.forwardRequisition,
       AppPermission.printFinalRequisition,
       AppPermission.viewRequisitionLocation,
