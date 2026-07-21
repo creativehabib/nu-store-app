@@ -856,7 +856,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
                                 decoration: InputDecoration(
-                                  labelText: 'Supply Qty',
+                                  labelText: 'Action Qty',
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                   isDense: true,
                                 ),
@@ -946,6 +946,15 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     for (var index = 0; index < _items.length; index++) {
       final item = _items[index];
       final supplyQuantity = _queueInt(_quantityControllers[index].text);
+      if (supplyQuantity <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quantity must be greater than 0'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          );
+        }
+        setState(() => _submitting = false);
+        return;
+      }
       final itemId = _queueItemId(item);
       quantities.add({
         if (itemId != null) 'id': itemId,
@@ -954,7 +963,19 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
         if (item['detail_id'] != null) 'detail_id': item['detail_id'],
         'product_id': _queueProductId(item),
-        'demanded_qty': _queueDemand(item),
+        'original_demanded_qty': _queueDemand(item),
+        'requested_quantity': supplyQuantity,
+        'request_quantity': supplyQuantity,
+        'requested_qty': supplyQuantity,
+        'request_qty': supplyQuantity,
+        'demanded_quantity': supplyQuantity,
+        'demand_quantity': supplyQuantity,
+        'demanded_qty': supplyQuantity,
+        'demand_qty': supplyQuantity,
+        'required_quantity': supplyQuantity,
+        'required_qty': supplyQuantity,
+        'requisition_quantity': supplyQuantity,
+        'quantity_requested': supplyQuantity,
         'quantity': supplyQuantity,
         'qty': supplyQuantity,
         'supplied_qty': supplyQuantity,
