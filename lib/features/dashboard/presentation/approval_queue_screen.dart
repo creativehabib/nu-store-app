@@ -954,8 +954,10 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
         if (item['detail_id'] != null) 'detail_id': item['detail_id'],
         'product_id': _queueProductId(item),
+        'demanded_qty': _queueDemand(item),
         'quantity': supplyQuantity,
         'qty': supplyQuantity,
+        'supplied_qty': supplyQuantity,
         'approved_qty': supplyQuantity,
         'approved_quantity': supplyQuantity,
         'determined_qty': supplyQuantity,
@@ -1240,7 +1242,7 @@ Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantiti
 
 int _quantityFromPayloadItem(Map<String, dynamic> item) {
   return _queueInt(
-    item['supply_qty'] ?? item['supplied_qty'] ?? item['supply_quantity'] ?? item['quantity'] ?? item['approved_qty'],
+    item['supplied_qty'] ?? item['supply_qty'] ?? item['supply_quantity'] ?? item['quantity'] ?? item['approved_qty'],
   );
 }
 
