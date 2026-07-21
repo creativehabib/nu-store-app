@@ -657,15 +657,19 @@ class _DemandCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final demandedQuantity = _queueDemand(row);
+    final actionQuantity = _queueSupplyQuantity(row);
+    final hasEditedQuantity = actionQuantity > 0 && actionQuantity != demandedQuantity;
+
     return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           Text(
-              '${_queueDemand(row)}',
+              '$actionQuantity',
               style: TextStyle(fontSize: compact ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)
           ),
-          Text(_queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
+          Text(hasEditedQuantity ? 'Demanded: $demandedQuantity ${_queueUnit(row)}' : _queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
         ]
     );
   }
@@ -856,7 +860,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
                                 decoration: InputDecoration(
-                                  labelText: 'Supply Qty',
+                                  labelText: 'Action Qty',
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                   isDense: true,
                                 ),
@@ -931,7 +935,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
   }
 
   Future<void> _sendBack() async {
-    await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false);
+    await _submitAction('return', buttonLabel: 'Send Back');
   }
 
   Future<void> _submit() async {
@@ -946,24 +950,24 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     for (var index = 0; index < _items.length; index++) {
       final item = _items[index];
       final supplyQuantity = _queueInt(_quantityControllers[index].text);
+      if (supplyQuantity <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quantity must be greater than 0'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          );
+        }
+        setState(() => _submitting = false);
+        return;
+      }
       final itemId = _queueItemId(item);
       quantities.add({
         if (itemId != null) 'id': itemId,
         if (item['requisition_item_id'] != null) 'requisition_item_id': item['requisition_item_id'],
-        if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
         if (item['detail_id'] != null) 'detail_id': item['detail_id'],
-        'product_id': _queueProductId(item),
-        'demanded_qty': _queueDemand(item),
-        'quantity': supplyQuantity,
-        'qty': supplyQuantity,
+        if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
+        if (_queueProductId(item) != null) 'product_id': _queueProductId(item),
         'supplied_qty': supplyQuantity,
-        'approved_qty': supplyQuantity,
-        'approved_quantity': supplyQuantity,
-        'determined_qty': supplyQuantity,
-        'determined_quantity': supplyQuantity,
-        'supply_qty': supplyQuantity,
-        'supply_quantity': supplyQuantity,
       });
     }
 
@@ -1148,6 +1152,7 @@ String _queueRoleLabel(String role) {
   return role.replaceAll('_', ' ');
 }
 
+
 Future<void> _sendRequisitionAction(
     WidgetRef ref, {
       required int id,
@@ -1178,23 +1183,7 @@ Future<void> _sendRequisitionAction(
       'comment': remarks,
       'note': remarks,
     },
-    if (quantities.isNotEmpty) ...{
-      'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
-      'approved_quantities': _suppliedQuantitiesByItemId(quantities),
-      'determined_quantities': _suppliedQuantitiesByItemId(quantities),
-      'supply_quantities': _suppliedQuantitiesByItemId(quantities),
-      if (quantities.length == 1) ...{
-        'supplied_quantity': _quantityFromPayloadItem(quantities.first),
-        'approved_quantity': _quantityFromPayloadItem(quantities.first),
-        'determined_quantity': _quantityFromPayloadItem(quantities.first),
-        'supply_quantity': _quantityFromPayloadItem(quantities.first),
-      },
-      'items': quantities,
-      'quantities': quantities,
-      'requisition_items': quantities,
-      'approved_items': quantities,
-      'supply_items': quantities,
-    },
+    if (quantities.isNotEmpty) 'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
   };
 
   final attempts = <_HttpAttempt>[
@@ -1231,19 +1220,28 @@ Future<void> _sendRequisitionAction(
 Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantities) {
   final suppliedQuantities = <String, int>{};
   for (final item in quantities) {
-    final itemId = _queueItemId(item);
     final quantity = _quantityFromPayloadItem(item);
-    if (itemId != null) {
-      suppliedQuantities['$itemId'] = quantity;
+    final ids = <Object?>{
+      item['id'],
+      item['requisition_item_id'],
+      item['requisition_detail_id'],
+      item['detail_id'],
+      item['pivot_id'],
+      item['product_id'],
+      _queueItemId(item),
+      _queueProductId(item),
+    };
+    for (final id in ids) {
+      if (id != null && '$id'.trim().isNotEmpty && '$id' != '0') {
+        suppliedQuantities['$id'] = quantity;
+      }
     }
   }
   return suppliedQuantities;
 }
 
 int _quantityFromPayloadItem(Map<String, dynamic> item) {
-  return _queueInt(
-    item['supplied_qty'] ?? item['supply_qty'] ?? item['supply_quantity'] ?? item['quantity'] ?? item['approved_qty'],
-  );
+  return _queueInt(item['supplied_qty']);
 }
 
 dynamic _queueItemId(Map<String, dynamic> item) {
@@ -1383,6 +1381,8 @@ int _queueDemand(Map<String, dynamic> row) {
 
 int _queueSupplyQuantity(Map<String, dynamic> row) {
   final savedSupply = _queueFirstPositiveInt([
+    row['supplied_quantity'],
+    row['supplied_qty'],
     row['supply_quantity'],
     row['supply_qty'],
     row['approved_quantity'],
