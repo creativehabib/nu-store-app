@@ -657,15 +657,19 @@ class _DemandCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final demandedQuantity = _queueDemand(row);
+    final actionQuantity = _queueSupplyQuantity(row);
+    final hasEditedQuantity = actionQuantity > 0 && actionQuantity != demandedQuantity;
+
     return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           Text(
-              '${_queueDemand(row)}',
+              '$actionQuantity',
               style: TextStyle(fontSize: compact ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)
           ),
-          Text(_queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
+          Text(hasEditedQuantity ? 'Demanded: $demandedQuantity ${_queueUnit(row)}' : _queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
         ]
     );
   }
@@ -1318,10 +1322,21 @@ Future<void> _sendRequisitionAction(
 Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantities) {
   final suppliedQuantities = <String, int>{};
   for (final item in quantities) {
-    final itemId = _queueItemId(item);
     final quantity = _quantityFromPayloadItem(item);
-    if (itemId != null) {
-      suppliedQuantities['$itemId'] = quantity;
+    final ids = <Object?>{
+      item['id'],
+      item['requisition_item_id'],
+      item['requisition_detail_id'],
+      item['detail_id'],
+      item['pivot_id'],
+      item['product_id'],
+      _queueItemId(item),
+      _queueProductId(item),
+    };
+    for (final id in ids) {
+      if (id != null && '$id'.trim().isNotEmpty && '$id' != '0') {
+        suppliedQuantities['$id'] = quantity;
+      }
     }
   }
   return suppliedQuantities;
