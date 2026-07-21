@@ -950,6 +950,8 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         if (item['id'] != null) 'id': item['id'],
         if (item['requisition_item_id'] != null) 'requisition_item_id': item['requisition_item_id'],
         if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
+        if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
+        if (item['detail_id'] != null) 'detail_id': item['detail_id'],
         'product_id': _queueProductId(item),
         'quantity': supplyQuantity,
         'qty': supplyQuantity,
@@ -1174,6 +1176,7 @@ Future<void> _sendRequisitionAction(
       'note': remarks,
     },
     if (quantities.isNotEmpty) ...{
+      'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
       'items': quantities,
       'quantities': quantities,
       'requisition_items': quantities,
@@ -1211,6 +1214,20 @@ Future<void> _sendRequisitionAction(
   }
 
   throw UnsupportedError('Workflow action API পাওয়া যায়নি। অনুগ্রহ করে অ্যাপ আপডেট/রিফ্রেশ করে আবার চেষ্টা করুন।');
+}
+
+Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantities) {
+  final suppliedQuantities = <String, int>{};
+  for (final item in quantities) {
+    final itemId = item['id'] ?? item['requisition_item_id'] ?? item['requisition_detail_id'] ?? item['detail_id'] ?? item['pivot_id'];
+    final quantity = _queueInt(
+      item['supply_qty'] ?? item['supplied_qty'] ?? item['quantity'] ?? item['approved_qty'],
+    );
+    if (itemId != null && quantity > 0) {
+      suppliedQuantities['$itemId'] = quantity;
+    }
+  }
+  return suppliedQuantities;
 }
 
 bool _shouldTryNextRoute(DioException error) {
