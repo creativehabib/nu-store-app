@@ -12,6 +12,10 @@ final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>
   final dio = ref.watch(apiClientProvider).dio;
   final statuses = _queueStatuses(queue);
   final attempts = <_HttpAttempt>[
+    if (queue == 'initiator')
+      const _HttpAttempt('GET', ApiRoutes.workflowInitiatorQueue)
+    else
+      const _HttpAttempt('GET', ApiRoutes.workflowApprovalQueue),
     _HttpAttempt('GET', '${ApiRoutes.requisitionWorkflow}/queue/$queue'),
     _HttpAttempt('GET', '${ApiRoutes.workflowRequisitions}/queue/$queue'),
     _HttpAttempt('GET', '${ApiRoutes.requisitions}/workflow/queue/$queue'),
@@ -25,7 +29,7 @@ final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>
         try {
           final response = await dio.get(
             attempt.path,
-            queryParameters: {'queue': queue, 'status': status, 'per_page': 100},
+            queryParameters: _queueQueryParameters(attempt.path, queue, status),
           );
           for (final row in _queueRows(response.data)) {
             rowsById[_queueRowKey(row)] = row;
@@ -887,6 +891,22 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.queue != 'initiator') ...[
+                    FilledButton.icon(
+                      onPressed: _submitting ? null : _sendBack,
+                      icon: _submitting
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.keyboard_return_rounded),
+                      label: const Text('Send Back'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
                   TextButton(
                       onPressed: _submitting ? null : () => Navigator.of(context).pop(),
                       child: const Text('Cancel')
@@ -910,7 +930,15 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     );
   }
 
+  Future<void> _sendBack() async {
+    await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false);
+  }
+
   Future<void> _submit() async {
+    await _submitAction(widget.action.action, buttonLabel: widget.action.buttonLabel);
+  }
+
+  Future<void> _submitAction(String action, {required String buttonLabel, bool includeQuantities = true}) async {
     final id = _queueInt(widget.row['id']);
     if (id == 0) return;
     setState(() => _submitting = true);
@@ -938,18 +966,18 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
       await _sendRequisitionAction(
         ref,
         id: id,
-        action: widget.action.action,
+        action: action,
         nextRole: widget.action.nextRole,
         currentRole: widget.action.currentRole ?? widget.queue,
         nextStatus: widget.action.nextStatus,
         remarks: _remarksController.text.trim(),
-        quantities: quantities,
+        quantities: includeQuantities ? quantities : const <Map<String, dynamic>>[],
       );
       ref.invalidate(requisitionQueueProvider(widget.queue));
       ref.invalidate(myRequisitionsProvider);
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.action.buttonLabel} successful'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$buttonLabel successful'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_actionErrorMessage(error), maxLines: 3, overflow: TextOverflow.ellipsis), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating));
@@ -1062,7 +1090,7 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
       buttonLabel: 'Forward',
       nextLabel: _queueRoleLabel(nextRole),
       nextRole: nextRole,
-      nextStatus: 'initiator_checked',
+      nextStatus: _waitingStatusForRole(nextRole),
       currentRole: 'initiator',
     );
   }
@@ -1079,8 +1107,8 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
   }
 
   return _QueueAction(
-    action: 'forward',
-    buttonLabel: 'Forward',
+    action: 'approve',
+    buttonLabel: 'Approve & Forward',
     nextLabel: _queueRoleLabel(nextRole),
     nextRole: nextRole,
     nextStatus: nextStatus,
@@ -1092,6 +1120,13 @@ String? _nextApprovalRole(String currentRole, List<String> approvalFlowRoles) {
   final currentIndex = approvalFlowRoles.indexOf(currentRole);
   if (currentIndex == -1 || currentIndex + 1 >= approvalFlowRoles.length) return null;
   return approvalFlowRoles[currentIndex + 1];
+}
+
+String _waitingStatusForRole(String role) {
+  if (role == 'assistant_director') return 'initiator_checked';
+  if (role == 'deputy_director') return 'ad_approved';
+  if (role == 'director') return 'dd_approved';
+  return 'pending';
 }
 
 String _approvalStatusForRole(String role) {
@@ -1148,9 +1183,9 @@ Future<void> _sendRequisitionAction(
   };
 
   final attempts = <_HttpAttempt>[
+    _HttpAttempt('POST', '${ApiRoutes.workflowRequisitions}/$id/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitionWorkflow}/$id/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitionWorkflow}/requisitions/$id/$action'),
-    _HttpAttempt('POST', '${ApiRoutes.workflowRequisitions}/$id/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/workflow/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/actions/$action'),
     _HttpAttempt('POST', '${ApiRoutes.requisitions}/$id/$action'),
@@ -1201,6 +1236,16 @@ String _actionErrorMessage(Object error) {
     if (error.response?.statusCode == 404) return 'Workflow action API পাওয়া যায়নি। অ্যাপটি রিফ্রেশ করে আবার চেষ্টা করুন।';
   }
   return 'Requisition action সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
+}
+
+Map<String, dynamic> _queueQueryParameters(String path, String queue, String status) {
+  if (path == ApiRoutes.workflowInitiatorQueue) {
+    return {'status': status, 'per_page': 100};
+  }
+  if (path == ApiRoutes.workflowApprovalQueue) {
+    return {'per_page': 100};
+  }
+  return {'queue': queue, 'status': status, 'per_page': 100};
 }
 
 List<String> _statusOptions(List<Map<String, dynamic>> rows) {
