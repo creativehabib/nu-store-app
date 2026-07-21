@@ -931,14 +931,14 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
   }
 
   Future<void> _sendBack() async {
-    await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false, nextStatus: 'returned');
+    await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false);
   }
 
   Future<void> _submit() async {
     await _submitAction(widget.action.action, buttonLabel: widget.action.buttonLabel);
   }
 
-  Future<void> _submitAction(String action, {required String buttonLabel, bool includeQuantities = true, String? nextStatus}) async {
+  Future<void> _submitAction(String action, {required String buttonLabel, bool includeQuantities = true}) async {
     final id = _queueInt(widget.row['id']);
     if (id == 0) return;
     setState(() => _submitting = true);
@@ -974,7 +974,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         action: action,
         nextRole: widget.action.nextRole,
         currentRole: widget.action.currentRole ?? widget.queue,
-        nextStatus: nextStatus ?? widget.action.nextStatus,
+        nextStatus: widget.action.nextStatus,
         remarks: _remarksController.text.trim(),
         quantities: includeQuantities ? quantities : const <Map<String, dynamic>>[],
       );
@@ -1112,7 +1112,7 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
   }
 
   return _QueueAction(
-    action: 'forward',
+    action: 'approve',
     buttonLabel: 'Approve & Forward',
     nextLabel: _queueRoleLabel(nextRole),
     nextRole: nextRole,
