@@ -972,9 +972,6 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     }
 
     try {
-      if (includeQuantities && quantities.isNotEmpty) {
-        await _persistRequisitionQuantities(ref, id: id, quantities: quantities);
-      }
       await _sendRequisitionAction(
         ref,
         id: id,
