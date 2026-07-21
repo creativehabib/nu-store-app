@@ -946,8 +946,9 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     for (var index = 0; index < _items.length; index++) {
       final item = _items[index];
       final supplyQuantity = _queueInt(_quantityControllers[index].text);
+      final itemId = _queueItemId(item);
       quantities.add({
-        if (item['id'] != null) 'id': item['id'],
+        if (itemId != null) 'id': itemId,
         if (item['requisition_item_id'] != null) 'requisition_item_id': item['requisition_item_id'],
         if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
@@ -1177,6 +1178,15 @@ Future<void> _sendRequisitionAction(
     },
     if (quantities.isNotEmpty) ...{
       'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
+      'approved_quantities': _suppliedQuantitiesByItemId(quantities),
+      'determined_quantities': _suppliedQuantitiesByItemId(quantities),
+      'supply_quantities': _suppliedQuantitiesByItemId(quantities),
+      if (quantities.length == 1) ...{
+        'supplied_quantity': _quantityFromPayloadItem(quantities.first),
+        'approved_quantity': _quantityFromPayloadItem(quantities.first),
+        'determined_quantity': _quantityFromPayloadItem(quantities.first),
+        'supply_quantity': _quantityFromPayloadItem(quantities.first),
+      },
       'items': quantities,
       'quantities': quantities,
       'requisition_items': quantities,
@@ -1219,15 +1229,33 @@ Future<void> _sendRequisitionAction(
 Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantities) {
   final suppliedQuantities = <String, int>{};
   for (final item in quantities) {
-    final itemId = item['id'] ?? item['requisition_item_id'] ?? item['requisition_detail_id'] ?? item['detail_id'] ?? item['pivot_id'];
-    final quantity = _queueInt(
-      item['supply_qty'] ?? item['supplied_qty'] ?? item['quantity'] ?? item['approved_qty'],
-    );
-    if (itemId != null && quantity > 0) {
+    final itemId = _queueItemId(item);
+    final quantity = _quantityFromPayloadItem(item);
+    if (itemId != null) {
       suppliedQuantities['$itemId'] = quantity;
     }
   }
   return suppliedQuantities;
+}
+
+int _quantityFromPayloadItem(Map<String, dynamic> item) {
+  return _queueInt(
+    item['supply_qty'] ?? item['supplied_qty'] ?? item['supply_quantity'] ?? item['quantity'] ?? item['approved_qty'],
+  );
+}
+
+dynamic _queueItemId(Map<String, dynamic> item) {
+  final requisitionItem = item['requisition_item'];
+  final detail = item['detail'];
+  final pivot = item['pivot'];
+  return item['requisition_item_id'] ??
+      item['requisition_detail_id'] ??
+      item['detail_id'] ??
+      item['pivot_id'] ??
+      (requisitionItem is Map ? requisitionItem['id'] : null) ??
+      (detail is Map ? detail['id'] : null) ??
+      (pivot is Map ? pivot['id'] : null) ??
+      item['id'];
 }
 
 bool _shouldTryNextRoute(DioException error) {
