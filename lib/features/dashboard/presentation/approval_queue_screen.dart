@@ -739,9 +739,11 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
   @override
   void initState() {
     super.initState();
-    final parsed = _queueRows(widget.row['items'] ?? widget.row['requisition_items']);
+    final parsed = _queueRows(
+      widget.row['items'] ?? widget.row['requisition_items'] ?? widget.row['details'] ?? widget.row['products'],
+    );
     _items = parsed.isEmpty ? [widget.row] : parsed;
-    _quantityControllers = _items.map((item) => TextEditingController(text: '${_queueDemand(item)}')).toList();
+    _quantityControllers = _items.map((item) => TextEditingController(text: '${_queueSupplyQuantity(item)}')).toList();
   }
 
   @override
@@ -914,12 +916,21 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     setState(() => _submitting = true);
     final quantities = <Map<String, dynamic>>[];
     for (var index = 0; index < _items.length; index++) {
+      final item = _items[index];
+      final supplyQuantity = _queueInt(_quantityControllers[index].text);
       quantities.add({
-        'id': _items[index]['id'],
-        'product_id': _queueProductId(_items[index]),
-        'approved_quantity': _queueInt(_quantityControllers[index].text),
-        'determined_quantity': _queueInt(_quantityControllers[index].text),
-        'supply_quantity': _queueInt(_quantityControllers[index].text),
+        if (item['id'] != null) 'id': item['id'],
+        if (item['requisition_item_id'] != null) 'requisition_item_id': item['requisition_item_id'],
+        if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
+        'product_id': _queueProductId(item),
+        'quantity': supplyQuantity,
+        'qty': supplyQuantity,
+        'approved_qty': supplyQuantity,
+        'approved_quantity': supplyQuantity,
+        'determined_qty': supplyQuantity,
+        'determined_quantity': supplyQuantity,
+        'supply_qty': supplyQuantity,
+        'supply_quantity': supplyQuantity,
       });
     }
 
@@ -929,6 +940,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         id: id,
         action: widget.action.action,
         nextRole: widget.action.nextRole,
+        currentRole: widget.action.currentRole ?? widget.queue,
         nextStatus: widget.action.nextStatus,
         remarks: _remarksController.text.trim(),
         quantities: quantities,
@@ -963,13 +975,21 @@ class _ItemNameWithUnit extends StatelessWidget {
 }
 
 class _QueueAction {
-  const _QueueAction({required this.action, required this.buttonLabel, required this.nextLabel, required this.nextStatus, this.nextRole});
+  const _QueueAction({
+    required this.action,
+    required this.buttonLabel,
+    required this.nextLabel,
+    required this.nextStatus,
+    this.nextRole,
+    this.currentRole,
+  });
 
   final String action;
   final String buttonLabel;
   final String nextLabel;
   final String nextStatus;
   final String? nextRole;
+  final String? currentRole;
 }
 
 class _HttpAttempt {
@@ -1034,23 +1054,51 @@ String _queueRowKey(Map<String, dynamic> row) {
 }
 
 _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
+  final approvalFlowRoles = settings.approvalFlowRoles;
   if (queue == 'initiator') {
-    final nextRole = settings.approvalFlowRoles.isEmpty ? 'assistant_director' : settings.approvalFlowRoles.first;
+    final nextRole = approvalFlowRoles.isEmpty ? 'director' : approvalFlowRoles.first;
     return _QueueAction(
       action: 'forward',
       buttonLabel: 'Forward',
       nextLabel: _queueRoleLabel(nextRole),
       nextRole: nextRole,
       nextStatus: 'initiator_checked',
+      currentRole: 'initiator',
     );
   }
-  if (queue == 'assistant_director') {
-    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Deputy Director', nextRole: 'deputy_director', nextStatus: 'ad_approved');
+
+  final nextRole = _nextApprovalRole(queue, approvalFlowRoles);
+  final nextStatus = _approvalStatusForRole(queue);
+  if (nextRole == null || queue == 'director') {
+    return const _QueueAction(
+      action: 'approve',
+      buttonLabel: 'Final Approve',
+      nextLabel: 'Distribution',
+      nextStatus: 'director_approved',
+    );
   }
-  if (queue == 'deputy_director') {
-    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Director', nextRole: 'director', nextStatus: 'dd_approved');
-  }
-  return const _QueueAction(action: 'approve', buttonLabel: 'Final Approve', nextLabel: 'Distribution', nextStatus: 'director_approved');
+
+  return _QueueAction(
+    action: 'forward',
+    buttonLabel: 'Forward',
+    nextLabel: _queueRoleLabel(nextRole),
+    nextRole: nextRole,
+    nextStatus: nextStatus,
+    currentRole: queue,
+  );
+}
+
+String? _nextApprovalRole(String currentRole, List<String> approvalFlowRoles) {
+  final currentIndex = approvalFlowRoles.indexOf(currentRole);
+  if (currentIndex == -1 || currentIndex + 1 >= approvalFlowRoles.length) return null;
+  return approvalFlowRoles[currentIndex + 1];
+}
+
+String _approvalStatusForRole(String role) {
+  if (role == 'assistant_director') return 'ad_approved';
+  if (role == 'deputy_director') return 'dd_approved';
+  if (role == 'director') return 'director_approved';
+  return '${role}_approved';
 }
 
 String _queueRoleLabel(String role) {
@@ -1066,6 +1114,7 @@ Future<void> _sendRequisitionAction(
       required String action,
       required String nextStatus,
       String? nextRole,
+      String? currentRole,
       String? remarks,
       List<Map<String, dynamic>> quantities = const <Map<String, dynamic>>[],
     }) async {
@@ -1075,10 +1124,14 @@ Future<void> _sendRequisitionAction(
     'decision': action,
     'status': nextStatus,
     'next_status': nextStatus,
+    if (currentRole != null) ...{
+      'role': currentRole,
+      'current_role': currentRole,
+      'approver_role': currentRole,
+    },
     if (nextRole != null) ...{
       'next_role': nextRole,
       'next_approver_role': nextRole,
-      'role': nextRole,
     },
     if (remarks != null && remarks.isNotEmpty) ...{
       'remarks': remarks,
@@ -1087,8 +1140,10 @@ Future<void> _sendRequisitionAction(
     },
     if (quantities.isNotEmpty) ...{
       'items': quantities,
+      'quantities': quantities,
       'requisition_items': quantities,
       'approved_items': quantities,
+      'supply_items': quantities,
     },
   };
 
@@ -1216,7 +1271,34 @@ String _queueApplicant(Map<String, dynamic> row) {
 }
 
 int _queueDemand(Map<String, dynamic> row) {
-  return _queueInt(row['demanded_quantity'] ?? row['quantity'] ?? row['qty'] ?? row['requested_quantity'] ?? 1);
+  return _queueFirstPositiveInt([
+    row['demanded_quantity'],
+    row['demand_quantity'],
+    row['requested_quantity'],
+    row['request_quantity'],
+    row['requisition_quantity'],
+    row['required_quantity'],
+    row['quantity_requested'],
+    row['requested_qty'],
+    row['request_qty'],
+    row['demanded_qty'],
+    row['demand_qty'],
+    row['required_qty'],
+    row['quantity'],
+    row['qty'],
+  ]);
+}
+
+int _queueSupplyQuantity(Map<String, dynamic> row) {
+  final savedSupply = _queueFirstPositiveInt([
+    row['supply_quantity'],
+    row['supply_qty'],
+    row['approved_quantity'],
+    row['approved_qty'],
+    row['determined_quantity'],
+    row['determined_qty'],
+  ]);
+  return savedSupply > 0 ? savedSupply : _queueDemand(row);
 }
 
 String _queueUnit(Map<String, dynamic> row) {
@@ -1242,6 +1324,14 @@ List<Map<String, dynamic>> _queueRows(dynamic data) {
 }
 
 int _queueInt(dynamic value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+
+int _queueFirstPositiveInt(List<dynamic> values) {
+  for (final value in values) {
+    final parsed = _queueInt(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+}
 
 String _queueItemSummary(Map<String, dynamic> row) {
   final items = _queueRows(row['items'] ?? row['requisition_items']);
