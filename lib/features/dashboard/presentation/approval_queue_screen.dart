@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_routes.dart';
@@ -856,8 +855,6 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                               child: TextField(
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                onChanged: (value) => _updateItemSupplyQuantity(index, value),
                                 decoration: InputDecoration(
                                   labelText: 'Supply Qty',
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -933,21 +930,6 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     );
   }
 
-  void _updateItemSupplyQuantity(int index, String value) {
-    final supplyQuantity = _queueInt(value);
-    final item = _items[index];
-    item['quantity'] = supplyQuantity;
-    item['qty'] = supplyQuantity;
-    item['supplied_qty'] = supplyQuantity;
-    item['supplied_quantity'] = supplyQuantity;
-    item['approved_qty'] = supplyQuantity;
-    item['approved_quantity'] = supplyQuantity;
-    item['determined_qty'] = supplyQuantity;
-    item['determined_quantity'] = supplyQuantity;
-    item['supply_qty'] = supplyQuantity;
-    item['supply_quantity'] = supplyQuantity;
-  }
-
   Future<void> _sendBack() async {
     await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false);
   }
@@ -964,7 +946,6 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     for (var index = 0; index < _items.length; index++) {
       final item = _items[index];
       final supplyQuantity = _queueInt(_quantityControllers[index].text);
-      _updateItemSupplyQuantity(index, _quantityControllers[index].text);
       final itemId = _queueItemId(item);
       quantities.add({
         if (itemId != null) 'id': itemId,
@@ -972,8 +953,6 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
         if (item['detail_id'] != null) 'detail_id': item['detail_id'],
-        if (itemId != null) 'requisition_item': itemId,
-        if (itemId != null) 'requisition_detail': itemId,
         'product_id': _queueProductId(item),
         'demanded_qty': _queueDemand(item),
         'quantity': supplyQuantity,
@@ -1204,8 +1183,6 @@ Future<void> _sendRequisitionAction(
       'approved_quantities': _suppliedQuantitiesByItemId(quantities),
       'determined_quantities': _suppliedQuantitiesByItemId(quantities),
       'supply_quantities': _suppliedQuantitiesByItemId(quantities),
-      'item_quantities': _suppliedQuantitiesByItemId(quantities),
-      'product_quantities': _suppliedQuantitiesByProductId(quantities),
       if (quantities.length == 1) ...{
         'supplied_quantity': _quantityFromPayloadItem(quantities.first),
         'approved_quantity': _quantityFromPayloadItem(quantities.first),
@@ -1217,7 +1194,6 @@ Future<void> _sendRequisitionAction(
       'requisition_items': quantities,
       'approved_items': quantities,
       'supply_items': quantities,
-      'details': quantities,
     },
   };
 
@@ -1259,18 +1235,6 @@ Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantiti
     final quantity = _quantityFromPayloadItem(item);
     if (itemId != null) {
       suppliedQuantities['$itemId'] = quantity;
-    }
-  }
-  return suppliedQuantities;
-}
-
-Map<String, int> _suppliedQuantitiesByProductId(List<Map<String, dynamic>> quantities) {
-  final suppliedQuantities = <String, int>{};
-  for (final item in quantities) {
-    final productId = _queueProductId(item);
-    final quantity = _quantityFromPayloadItem(item);
-    if (productId != null) {
-      suppliedQuantities['$productId'] = quantity;
     }
   }
   return suppliedQuantities;
