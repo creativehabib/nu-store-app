@@ -940,6 +940,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
         id: id,
         action: widget.action.action,
         nextRole: widget.action.nextRole,
+        currentRole: widget.action.currentRole ?? widget.queue,
         nextStatus: widget.action.nextStatus,
         remarks: _remarksController.text.trim(),
         quantities: quantities,
@@ -974,13 +975,21 @@ class _ItemNameWithUnit extends StatelessWidget {
 }
 
 class _QueueAction {
-  const _QueueAction({required this.action, required this.buttonLabel, required this.nextLabel, required this.nextStatus, this.nextRole});
+  const _QueueAction({
+    required this.action,
+    required this.buttonLabel,
+    required this.nextLabel,
+    required this.nextStatus,
+    this.nextRole,
+    this.currentRole,
+  });
 
   final String action;
   final String buttonLabel;
   final String nextLabel;
   final String nextStatus;
   final String? nextRole;
+  final String? currentRole;
 }
 
 class _HttpAttempt {
@@ -1054,6 +1063,7 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
       nextLabel: _queueRoleLabel(nextRole),
       nextRole: nextRole,
       nextStatus: 'initiator_checked',
+      currentRole: 'initiator',
     );
   }
 
@@ -1068,14 +1078,13 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
     );
   }
 
-  // Approver roles use the approve endpoint permission while still forwarding to
-  // the next configured approval role through nextRole/nextStatus.
   return _QueueAction(
-    action: 'approve',
+    action: 'forward',
     buttonLabel: 'Forward',
     nextLabel: _queueRoleLabel(nextRole),
     nextRole: nextRole,
     nextStatus: nextStatus,
+    currentRole: queue,
   );
 }
 
@@ -1105,6 +1114,7 @@ Future<void> _sendRequisitionAction(
       required String action,
       required String nextStatus,
       String? nextRole,
+      String? currentRole,
       String? remarks,
       List<Map<String, dynamic>> quantities = const <Map<String, dynamic>>[],
     }) async {
@@ -1114,6 +1124,11 @@ Future<void> _sendRequisitionAction(
     'decision': action,
     'status': nextStatus,
     'next_status': nextStatus,
+    if (currentRole != null) ...{
+      'role': currentRole,
+      'current_role': currentRole,
+      'approver_role': currentRole,
+    },
     if (nextRole != null) ...{
       'next_role': nextRole,
       'next_approver_role': nextRole,

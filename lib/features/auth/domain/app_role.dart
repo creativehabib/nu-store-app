@@ -103,10 +103,12 @@ class RolePermissions {
       AppPermission.viewRequisitionLocation,
     },
     AppRole.assistantDirector: {
+      AppPermission.forwardRequisition,
       AppPermission.assistantDirectorVerify,
       AppPermission.viewRequisitionLocation,
     },
     AppRole.deputyDirector: {
+      AppPermission.forwardRequisition,
       AppPermission.deputyDirectorVerify,
       AppPermission.viewRequisitionLocation,
     },
