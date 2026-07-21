@@ -1485,6 +1485,8 @@ int _queueDemand(Map<String, dynamic> row) {
 
 int _queueSupplyQuantity(Map<String, dynamic> row) {
   final savedSupply = _queueFirstPositiveInt([
+    row['supplied_quantity'],
+    row['supplied_qty'],
     row['supply_quantity'],
     row['supply_qty'],
     row['approved_quantity'],
