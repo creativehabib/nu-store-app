@@ -931,7 +931,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
   }
 
   Future<void> _sendBack() async {
-    await _submitAction('return', buttonLabel: 'Send Back', includeQuantities: false);
+    await _submitAction('return', buttonLabel: 'Send Back');
   }
 
   Future<void> _submit() async {
@@ -989,6 +989,9 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     }
 
     try {
+      if (includeQuantities && quantities.isNotEmpty) {
+        await _persistRequisitionQuantities(ref, id: id, quantities: quantities);
+      }
       await _sendRequisitionAction(
         ref,
         id: id,
@@ -1167,6 +1170,69 @@ String _queueRoleLabel(String role) {
   if (role == 'deputy_director') return 'Deputy Director';
   if (role == 'director') return 'Director';
   return role.replaceAll('_', ' ');
+}
+
+
+Future<void> _persistRequisitionQuantities(
+  WidgetRef ref, {
+  required int id,
+  required List<Map<String, dynamic>> quantities,
+}) async {
+  final dio = ref.read(apiClientProvider).dio;
+  final payload = _quantityUpdatePayload(quantities);
+  final attempts = <_HttpAttempt>[
+    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id/items'),
+    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id/items'),
+    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id/quantities'),
+    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id/quantities'),
+    _HttpAttempt('PATCH', '${ApiRoutes.requisitionWorkflow}/$id/quantities'),
+    _HttpAttempt('PUT', '${ApiRoutes.requisitionWorkflow}/$id/quantities'),
+    _HttpAttempt('PATCH', '${ApiRoutes.workflowRequisitions}/$id/quantities'),
+    _HttpAttempt('PUT', '${ApiRoutes.workflowRequisitions}/$id/quantities'),
+    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id'),
+    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id'),
+  ];
+
+  for (final attempt in attempts) {
+    try {
+      if (attempt.method == 'PUT') {
+        await dio.put(attempt.path, data: payload);
+      } else {
+        await dio.patch(attempt.path, data: payload);
+      }
+      return;
+    } on DioException catch (error) {
+      if (_shouldTryNextRoute(error) || _shouldTryNextStatus(error)) continue;
+      rethrow;
+    }
+  }
+}
+
+Map<String, dynamic> _quantityUpdatePayload(List<Map<String, dynamic>> quantities) {
+  final byItemId = _suppliedQuantitiesByItemId(quantities);
+  return {
+    'items': quantities,
+    'quantities': quantities,
+    'requisition_items': quantities,
+    'details': quantities,
+    'products': quantities,
+    'supplied_quantities': byItemId,
+    'approved_quantities': byItemId,
+    'determined_quantities': byItemId,
+    'supply_quantities': byItemId,
+    'requested_quantities': byItemId,
+    'demanded_quantities': byItemId,
+    if (quantities.length == 1) ...{
+      'quantity': _quantityFromPayloadItem(quantities.first),
+      'qty': _quantityFromPayloadItem(quantities.first),
+      'supplied_quantity': _quantityFromPayloadItem(quantities.first),
+      'approved_quantity': _quantityFromPayloadItem(quantities.first),
+      'determined_quantity': _quantityFromPayloadItem(quantities.first),
+      'supply_quantity': _quantityFromPayloadItem(quantities.first),
+      'requested_quantity': _quantityFromPayloadItem(quantities.first),
+      'demanded_quantity': _quantityFromPayloadItem(quantities.first),
+    },
+  };
 }
 
 Future<void> _sendRequisitionAction(
