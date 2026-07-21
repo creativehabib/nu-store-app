@@ -963,32 +963,11 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
       quantities.add({
         if (itemId != null) 'id': itemId,
         if (item['requisition_item_id'] != null) 'requisition_item_id': item['requisition_item_id'],
-        if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
         if (item['requisition_detail_id'] != null) 'requisition_detail_id': item['requisition_detail_id'],
         if (item['detail_id'] != null) 'detail_id': item['detail_id'],
-        'product_id': _queueProductId(item),
-        'original_demanded_qty': _queueDemand(item),
-        'requested_quantity': supplyQuantity,
-        'request_quantity': supplyQuantity,
-        'requested_qty': supplyQuantity,
-        'request_qty': supplyQuantity,
-        'demanded_quantity': supplyQuantity,
-        'demand_quantity': supplyQuantity,
-        'demanded_qty': supplyQuantity,
-        'demand_qty': supplyQuantity,
-        'required_quantity': supplyQuantity,
-        'required_qty': supplyQuantity,
-        'requisition_quantity': supplyQuantity,
-        'quantity_requested': supplyQuantity,
-        'quantity': supplyQuantity,
-        'qty': supplyQuantity,
+        if (item['pivot_id'] != null) 'pivot_id': item['pivot_id'],
+        if (_queueProductId(item) != null) 'product_id': _queueProductId(item),
         'supplied_qty': supplyQuantity,
-        'approved_qty': supplyQuantity,
-        'approved_quantity': supplyQuantity,
-        'determined_qty': supplyQuantity,
-        'determined_quantity': supplyQuantity,
-        'supply_qty': supplyQuantity,
-        'supply_quantity': supplyQuantity,
       });
     }
 
@@ -1177,68 +1156,6 @@ String _queueRoleLabel(String role) {
 }
 
 
-Future<void> _persistRequisitionQuantities(
-  WidgetRef ref, {
-  required int id,
-  required List<Map<String, dynamic>> quantities,
-}) async {
-  final dio = ref.read(apiClientProvider).dio;
-  final payload = _quantityUpdatePayload(quantities);
-  final attempts = <_HttpAttempt>[
-    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id/items'),
-    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id/items'),
-    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id/quantities'),
-    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id/quantities'),
-    _HttpAttempt('PATCH', '${ApiRoutes.requisitionWorkflow}/$id/quantities'),
-    _HttpAttempt('PUT', '${ApiRoutes.requisitionWorkflow}/$id/quantities'),
-    _HttpAttempt('PATCH', '${ApiRoutes.workflowRequisitions}/$id/quantities'),
-    _HttpAttempt('PUT', '${ApiRoutes.workflowRequisitions}/$id/quantities'),
-    _HttpAttempt('PATCH', '${ApiRoutes.requisitions}/$id'),
-    _HttpAttempt('PUT', '${ApiRoutes.requisitions}/$id'),
-  ];
-
-  for (final attempt in attempts) {
-    try {
-      if (attempt.method == 'PUT') {
-        await dio.put(attempt.path, data: payload);
-      } else {
-        await dio.patch(attempt.path, data: payload);
-      }
-      return;
-    } on DioException catch (error) {
-      if (_shouldTryNextRoute(error) || _shouldTryNextStatus(error)) continue;
-      rethrow;
-    }
-  }
-}
-
-Map<String, dynamic> _quantityUpdatePayload(List<Map<String, dynamic>> quantities) {
-  final byItemId = _suppliedQuantitiesByItemId(quantities);
-  return {
-    'items': quantities,
-    'quantities': quantities,
-    'requisition_items': quantities,
-    'details': quantities,
-    'products': quantities,
-    'supplied_quantities': byItemId,
-    'approved_quantities': byItemId,
-    'determined_quantities': byItemId,
-    'supply_quantities': byItemId,
-    'requested_quantities': byItemId,
-    'demanded_quantities': byItemId,
-    if (quantities.length == 1) ...{
-      'quantity': _quantityFromPayloadItem(quantities.first),
-      'qty': _quantityFromPayloadItem(quantities.first),
-      'supplied_quantity': _quantityFromPayloadItem(quantities.first),
-      'approved_quantity': _quantityFromPayloadItem(quantities.first),
-      'determined_quantity': _quantityFromPayloadItem(quantities.first),
-      'supply_quantity': _quantityFromPayloadItem(quantities.first),
-      'requested_quantity': _quantityFromPayloadItem(quantities.first),
-      'demanded_quantity': _quantityFromPayloadItem(quantities.first),
-    },
-  };
-}
-
 Future<void> _sendRequisitionAction(
     WidgetRef ref, {
       required int id,
@@ -1269,23 +1186,7 @@ Future<void> _sendRequisitionAction(
       'comment': remarks,
       'note': remarks,
     },
-    if (quantities.isNotEmpty) ...{
-      'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
-      'approved_quantities': _suppliedQuantitiesByItemId(quantities),
-      'determined_quantities': _suppliedQuantitiesByItemId(quantities),
-      'supply_quantities': _suppliedQuantitiesByItemId(quantities),
-      if (quantities.length == 1) ...{
-        'supplied_quantity': _quantityFromPayloadItem(quantities.first),
-        'approved_quantity': _quantityFromPayloadItem(quantities.first),
-        'determined_quantity': _quantityFromPayloadItem(quantities.first),
-        'supply_quantity': _quantityFromPayloadItem(quantities.first),
-      },
-      'items': quantities,
-      'quantities': quantities,
-      'requisition_items': quantities,
-      'approved_items': quantities,
-      'supply_items': quantities,
-    },
+    if (quantities.isNotEmpty) 'supplied_quantities': _suppliedQuantitiesByItemId(quantities),
   };
 
   final attempts = <_HttpAttempt>[
@@ -1343,9 +1244,7 @@ Map<String, int> _suppliedQuantitiesByItemId(List<Map<String, dynamic>> quantiti
 }
 
 int _quantityFromPayloadItem(Map<String, dynamic> item) {
-  return _queueInt(
-    item['supplied_qty'] ?? item['supply_qty'] ?? item['supply_quantity'] ?? item['quantity'] ?? item['approved_qty'],
-  );
+  return _queueInt(item['supplied_qty']);
 }
 
 dynamic _queueItemId(Map<String, dynamic> item) {
