@@ -1034,8 +1034,9 @@ String _queueRowKey(Map<String, dynamic> row) {
 }
 
 _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
+  final approvalFlowRoles = settings.approvalFlowRoles;
   if (queue == 'initiator') {
-    final nextRole = settings.approvalFlowRoles.isEmpty ? 'assistant_director' : settings.approvalFlowRoles.first;
+    final nextRole = approvalFlowRoles.isEmpty ? 'director' : approvalFlowRoles.first;
     return _QueueAction(
       action: 'forward',
       buttonLabel: 'Forward',
@@ -1044,13 +1045,38 @@ _QueueAction _queueAction(String queue, RequisitionWorkflowSettings settings) {
       nextStatus: 'initiator_checked',
     );
   }
-  if (queue == 'assistant_director') {
-    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Deputy Director', nextRole: 'deputy_director', nextStatus: 'ad_approved');
+
+  final nextRole = _nextApprovalRole(queue, approvalFlowRoles);
+  final nextStatus = _approvalStatusForRole(queue);
+  if (nextRole == null || queue == 'director') {
+    return const _QueueAction(
+      action: 'approve',
+      buttonLabel: 'Final Approve',
+      nextLabel: 'Distribution',
+      nextStatus: 'director_approved',
+    );
   }
-  if (queue == 'deputy_director') {
-    return const _QueueAction(action: 'approve', buttonLabel: 'Verify', nextLabel: 'Director', nextRole: 'director', nextStatus: 'dd_approved');
-  }
-  return const _QueueAction(action: 'approve', buttonLabel: 'Final Approve', nextLabel: 'Distribution', nextStatus: 'director_approved');
+
+  return _QueueAction(
+    action: 'forward',
+    buttonLabel: 'Forward',
+    nextLabel: _queueRoleLabel(nextRole),
+    nextRole: nextRole,
+    nextStatus: nextStatus,
+  );
+}
+
+String? _nextApprovalRole(String currentRole, List<String> approvalFlowRoles) {
+  final currentIndex = approvalFlowRoles.indexOf(currentRole);
+  if (currentIndex == -1 || currentIndex + 1 >= approvalFlowRoles.length) return null;
+  return approvalFlowRoles[currentIndex + 1];
+}
+
+String _approvalStatusForRole(String role) {
+  if (role == 'assistant_director') return 'ad_approved';
+  if (role == 'deputy_director') return 'dd_approved';
+  if (role == 'director') return 'director_approved';
+  return '${role}_approved';
 }
 
 String _queueRoleLabel(String role) {
@@ -1078,7 +1104,6 @@ Future<void> _sendRequisitionAction(
     if (nextRole != null) ...{
       'next_role': nextRole,
       'next_approver_role': nextRole,
-      'role': nextRole,
     },
     if (remarks != null && remarks.isNotEmpty) ...{
       'remarks': remarks,
