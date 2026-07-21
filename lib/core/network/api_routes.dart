@@ -15,6 +15,9 @@ class ApiRoutes {
   static const String requisitions = '/api/v1/requisitions';
   static const String requisitionWorkflow = '/api/v1/requisition-workflow';
   static const String workflowRequisitions = '/api/v1/workflow/requisitions';
+  static const String workflowCounts = '/api/v1/workflow/counts';
+  static const String workflowInitiatorQueue = '/api/v1/workflow/initiator-queue';
+  static const String workflowApprovalQueue = '/api/v1/workflow/approval-queue';
   static const String settings = '/api/v1/settings';
   static const String stockEntries = '/api/v1/stock-entries';
 }
