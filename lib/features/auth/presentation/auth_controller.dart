@@ -147,6 +147,12 @@ class AuthController extends StateNotifier<AuthState> {
     return value != null;
   }
 
+
+  Future<void> replaceUser(Map<String, dynamic> user) async {
+    await _repository.persistUser(user);
+    state = state.copyWith(user: user, isApproved: _isApproved(user), clearError: true);
+  }
+
   Future<void> logout() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {

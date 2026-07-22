@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/domain/app_role.dart';
+import '../../profile/domain/user_profile.dart';
+import '../../profile/presentation/widgets/profile_avatar.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../../screens/home_screen.dart';
 import '../../../shared/widgets/api_collection_screen.dart';
 import '../domain/dashboard_stats.dart';
 import 'dashboard_controller.dart';
+import 'dashboard_navigation.dart';
 import 'requisitioner_screens.dart';
 
 // Primary brand color to keep consistency with Login/Register screens
@@ -43,7 +46,7 @@ class DashboardScreen extends ConsumerWidget {
       );
     }
 
-    final navItems = _navItemsFor(auth.role);
+    final navItems = navItemsFor(auth.role);
     final selectedIndex = requestedIndex >= navItems.length ? 0 : requestedIndex;
 
     return Scaffold(
@@ -79,7 +82,7 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       drawer: _AppDrawer(
-        userName: auth.user?['name'] as String? ?? 'Approved User',
+        profile: UserProfile.fromMap(auth.user),
         role: auth.role,
       ),
       body: SafeArea(
@@ -116,7 +119,7 @@ class _DashboardBody extends ConsumerWidget {
   });
 
   final int selectedIndex;
-  final List<_NavItem> navItems;
+  final List<DashboardNavItem> navItems;
   final AppRole role;
 
   @override
@@ -188,7 +191,7 @@ class _RoleDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = _drawerItemsFor(role);
+    final items = drawerItemsFor(role);
     final stats = ref.watch(dashboardStatsProvider);
 
     return RefreshIndicator(
@@ -232,11 +235,11 @@ class _RoleDashboard extends ConsumerWidget {
                 title: Text(item.label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(_actionHint(item.label), style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                  child: Text(actionHint(item.label), style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
                 ),
                 trailing: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey.shade400),
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+                  MaterialPageRoute(builder: (_) => screenForDashboardLabel(item.label)),
                 ),
               ),
             ),
@@ -541,10 +544,43 @@ class _OfflineStatsHint extends StatelessWidget {
   }
 }
 
-class _AppDrawer extends StatelessWidget {
-  const _AppDrawer({required this.userName, required this.role});
 
-  final String userName;
+
+class _ProfileInfoChip extends StatelessWidget {
+  const _ProfileInfoChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foregroundColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _AppDrawer extends StatelessWidget {
+  const _AppDrawer({required this.profile, required this.role});
+
+  final UserProfile profile;
   final AppRole role;
 
   @override
@@ -555,33 +591,63 @@ class _AppDrawer extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
-            decoration: const BoxDecoration(
-              color: _primaryColor,
+            padding: const EdgeInsets.fromLTRB(18, 44, 18, 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person_outline, size: 32, color: _primaryColor),
+                ProfileAvatar(
+                  name: profile.name,
+                  imageUrl: profile.imageUrl,
+                  radius: 28,
+                  backgroundColor: _primaryColor.withOpacity(0.12),
+                  foregroundColor: _primaryColor,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  userName,
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    role.label,
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF333333),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (profile.email.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          profile.email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _ProfileInfoChip(
+                            label: 'Role: ${role.label}',
+                            backgroundColor: const Color(0xFFEAF1FF),
+                            foregroundColor: _primaryColor,
+                          ),
+                          _ProfileInfoChip(
+                            label: 'PF No: ${profile.pfNo.isEmpty ? 'N/A' : profile.pfNo}',
+                            backgroundColor: const Color(0xFFF2F2F2),
+                            foregroundColor: const Color(0xFF333333),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -591,15 +657,13 @@ class _AppDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 10),
               children: [
-                for (final item in _drawerItemsFor(role))
+                for (final item in drawerItemsFor(role))
                   ListTile(
                     leading: Icon(item.icon, color: Colors.grey.shade700),
                     title: Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
-                      );
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => screenForDashboardLabel(item.label)));
                     },
                   ),
               ],
@@ -609,93 +673,4 @@ class _AppDrawer extends StatelessWidget {
       ),
     );
   }
-}
-
-class _NavItem {
-  const _NavItem({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-}
-
-List<_NavItem> _navItemsFor(AppRole role) {
-  final items = <_NavItem>[
-    const _NavItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
-  ];
-
-  if (RolePermissions.can(role, AppPermission.manageInventory)) {
-    items.add(const _NavItem(icon: Icons.inventory_2_outlined, label: 'Inventory'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.createRequisition) ||
-      RolePermissions.can(role, AppPermission.viewRequisitionLocation) ||
-      RolePermissions.can(role, AppPermission.forwardRequisition) ||
-      RolePermissions.can(role, AppPermission.finalApprove)) {
-    items.add(const _NavItem(icon: Icons.assignment_outlined, label: 'Requisitions'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.manageSettings)) {
-    items.add(const _NavItem(icon: Icons.settings_outlined, label: 'Settings'));
-  }
-
-  return items;
-}
-
-List<_NavItem> _drawerItemsFor(AppRole role) {
-  final items = <_NavItem>[];
-
-  if (RolePermissions.can(role, AppPermission.manageInventory)) {
-    items.addAll(const [
-      _NavItem(icon: Icons.category_outlined, label: 'Categories & Products'),
-      _NavItem(icon: Icons.add_box_outlined, label: 'Stock In / Entries'),
-    ]);
-  }
-
-  if (RolePermissions.can(role, AppPermission.createRequisition)) {
-    items.add(const _NavItem(icon: Icons.playlist_add_rounded, label: 'Submit Demand'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.viewOwnRequisitions) ||
-      RolePermissions.can(role, AppPermission.viewRequisitionLocation)) {
-    items.add(const _NavItem(icon: Icons.timeline_rounded, label: 'My Requisitions'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.forwardRequisition)) {
-    items.add(const _NavItem(icon: Icons.forward_to_inbox_rounded, label: 'Initiator Queue'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.assistantDirectorVerify)) {
-    items.add(const _NavItem(icon: Icons.fact_check_outlined, label: 'Assistant Director Review'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.deputyDirectorVerify)) {
-    items.add(const _NavItem(icon: Icons.verified_outlined, label: 'Deputy Director Review'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.finalApprove)) {
-    items.add(const _NavItem(icon: Icons.approval_outlined, label: 'Director Final Approval'));
-  }
-
-  if (role != AppRole.initiator && RolePermissions.can(role, AppPermission.printFinalRequisition)) {
-    items.add(const _NavItem(icon: Icons.print_outlined, label: 'Final Print'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.manageOrganization)) {
-    items.add(const _NavItem(icon: Icons.apartment_outlined, label: 'Departments & Designations'));
-  }
-
-  if (RolePermissions.can(role, AppPermission.manageSettings)) {
-    items.add(const _NavItem(icon: Icons.language_rounded, label: 'Language & Settings'));
-  }
-
-  return items;
-}
-
-String _actionHint(String label) {
-  return switch (label) {
-    'Initiator Queue' => 'Check new requisitions and forward them to approval.',
-    'Final Print' => 'Print completed requisition letters after final approval.',
-    'My Requisitions' => 'Track requisition status and location.',
-    _ => 'Open this module.',
-  };
 }

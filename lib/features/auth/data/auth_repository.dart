@@ -85,6 +85,8 @@ class AuthRepository {
     await _storage.clearAuth();
   }
 
+  Future<void> persistUser(Map<String, dynamic> user) => _storage.saveUser(user);
+
   Future<void> persistSession(String token, Map<String, dynamic> user) async {
     await _storage.saveToken(token);
     await _storage.saveUser(user);
