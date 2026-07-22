@@ -869,7 +869,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                   ),
                   const SizedBox(height: 20),
 
-                  // Elegant Item Cards
+                  // Elegant Item Cards (Fix for mobile crash)
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -886,17 +886,17 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
                         ),
                         child: Wrap(
-                          spacing: 20,
-                          runSpacing: 20,
+                          spacing: 16,
+                          runSpacing: 16,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             SizedBox(
                                 width: isMobile ? double.infinity : 220,
                                 child: _ItemNameWithUnit(item: item)
                             ),
-                            Container(width: 1, height: 40, color: Colors.grey.shade200),
+                            if (!isMobile) Container(width: 1, height: 40, color: Colors.grey.shade200),
                             SizedBox(
-                              width: 80,
+                              width: 70,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -907,7 +907,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                               ),
                             ),
                             SizedBox(
-                              width: 80,
+                              width: 70,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -917,7 +917,8 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                                 ],
                               ),
                             ),
-                            Expanded(
+                            SizedBox(
+                              width: 140, // Removed Expanded, added Fixed Width to fix mobile crash
                               child: TextField(
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
@@ -961,7 +962,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
               ),
             ),
 
-            // Fixed Footer Action Area (Only Return & Action Buttons)
+            // Fixed Footer Action Area (Only Return & Action Buttons, removed Cancel)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -973,7 +974,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
               ),
               child: isMobile
                   ? Column(
-                // Mobile View: Stacked buttons without Cancel
+                // Mobile View: Stacked buttons
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1004,7 +1005,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                 ],
               )
                   : Row(
-                // Desktop/Tablet View: Side-by-side buttons without Cancel
+                // Desktop/Tablet View: Side-by-side buttons
                 children: [
                   if (widget.queue != 'initiator') ...[
                     OutlinedButton.icon(
