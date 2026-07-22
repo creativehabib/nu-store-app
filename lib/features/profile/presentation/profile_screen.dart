@@ -7,6 +7,9 @@ import 'profile_controller.dart';
 import 'widgets/change_password_dialog.dart';
 import 'widgets/profile_avatar.dart';
 
+// Primary brand color to maintain consistency
+const Color _primaryColor = Color(0xFF1E3A8A);
+
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -20,6 +23,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _email = TextEditingController();
   final _pfNo = TextEditingController();
   final _mobile = TextEditingController();
+
   int? _departmentId;
   int? _designationId;
   bool _seeded = false;
@@ -31,6 +35,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _pfNo.dispose();
     _mobile.dispose();
     super.dispose();
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -51,57 +67,235 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       loading: () => null,
       error: (error, _) => '$error',
     );
+
     if (!_seeded && profile != null) _seed(profile);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Update Profile')),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(profileControllerProvider.notifier).refresh(),
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Center(child: ProfileAvatar(name: profile?.name ?? _name.text, imageUrl: profile?.imageUrl, radius: 48)),
-            const SizedBox(height: 12),
-            Center(child: Text(profile?.role ?? '', style: TextStyle(color: Colors.grey.shade600))),
-            const SizedBox(height: 24),
-            Form(
-              key: _formKey,
-              child: Column(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'Update Profile',
+          style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: RefreshIndicator(
+              color: _primaryColor,
+              backgroundColor: Colors.white,
+              onRefresh: () => ref.read(profileControllerProvider.notifier).refresh(),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 children: [
-                  _field(_name, 'Full Name', Icons.person_outline),
-                  _field(_email, 'Email Address', Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-                  _field(_pfNo, 'PF Number', Icons.badge_outlined),
-                  _field(_mobile, 'Mobile Number', Icons.phone_outlined, keyboardType: TextInputType.phone),
-                  _dropdown('Department', ref.watch(departmentsProvider), _departmentId, (value) => setState(() => _departmentId = value)),
-                  _dropdown('Designation', ref.watch(designationsProvider), _designationId, (value) => setState(() => _designationId = value)),
+                  // Hero Profile Section
+                  Center(
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: _primaryColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 8)),
+                            ],
+                            border: Border.all(color: Colors.white, width: 4),
+                          ),
+                          child: ProfileAvatar(
+                            name: profile?.name ?? _name.text,
+                            imageUrl: profile?.imageUrl,
+                            radius: 56,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: _primaryColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Role Badge
+                  if (profile?.role != null && profile!.role.isNotEmpty)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          profile.role.toUpperCase(),
+                          style: const TextStyle(
+                            color: _primaryColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 32),
+
+                  // Form Section inside a modern Card
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5)),
+                      ],
+                      border: Border.all(color: Colors.grey.shade100),
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Personal Information',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildTextField(
+                            controller: _name,
+                            label: 'Full Name',
+                            icon: Icons.person_outline_rounded,
+                          ),
+                          _buildTextField(
+                            controller: _email,
+                            label: 'Email Address',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          _buildTextField(
+                            controller: _mobile,
+                            label: 'Mobile Number',
+                            icon: Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                          ),
+
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.0),
+                            child: Divider(),
+                          ),
+
+                          const Text(
+                            'Professional Details',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildTextField(
+                            controller: _pfNo,
+                            label: 'PF Number',
+                            icon: Icons.badge_outlined,
+                          ),
+                          _buildDropdown(
+                            label: 'Department',
+                            rows: ref.watch(departmentsProvider),
+                            value: _departmentId,
+                            icon: Icons.domain_rounded,
+                            onChanged: (value) => setState(() => _departmentId = value),
+                          ),
+                          _buildDropdown(
+                            label: 'Designation',
+                            rows: ref.watch(designationsProvider),
+                            value: _designationId,
+                            icon: Icons.work_outline_rounded,
+                            onChanged: (value) => setState(() => _designationId = value),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Error Message
+                  if (errorText != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline_rounded, color: Colors.red.shade600),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(errorText, style: TextStyle(color: Colors.red.shade800))),
+                        ],
+                      ),
+                    ),
+
+                  // Action Buttons
+                  SizedBox(
+                    height: 56,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: isBusy ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        disabledBackgroundColor: _primaryColor.withOpacity(0.6),
+                      ),
+                      icon: isBusy
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                          : const Icon(Icons.save_rounded),
+                      label: Text(
+                        isBusy ? 'Saving...' : 'Save Profile',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 56,
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: isBusy ? null : _openChangePasswordDialog,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _primaryColor,
+                        side: BorderSide(color: _primaryColor.withOpacity(0.5), width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      icon: const Icon(Icons.lock_reset_rounded),
+                      label: const Text(
+                        'Change Password',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            if (errorText != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(errorText, style: const TextStyle(color: Colors.redAccent)),
-              ),
-            FilledButton.icon(
-              onPressed: isBusy ? null : _submit,
-              icon: isBusy
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.save_outlined),
-              label: const Text('Save Profile'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: isBusy ? null : _openChangePasswordDialog,
-              icon: const Icon(Icons.lock_reset_rounded),
-              label: const Text('Change Password'),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Profile image is shown from the API user payload when fields like profile_photo_url, avatar_url, photo_url, or image_url are available.',
-              style: TextStyle(color: Colors.grey.shade600, height: 1.4),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -117,31 +311,97 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _seeded = true;
   }
 
-  Widget _field(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
-        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder()),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey.shade600),
+          prefixIcon: Icon(icon, color: _primaryColor.withOpacity(0.7)),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _primaryColor, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+          ),
+        ),
         validator: (value) => value == null || value.trim().isEmpty ? '$label is required' : null,
       ),
     );
   }
 
-  Widget _dropdown(String label, AsyncValue<List<Map<String, dynamic>>> rows, int? value, ValueChanged<int?> onChanged) {
+  Widget _buildDropdown({
+    required String label,
+    required AsyncValue<List<Map<String, dynamic>>> rows,
+    required int? value,
+    required IconData icon,
+    required ValueChanged<int?> onChanged,
+  }) {
     final options = rows.when(
       data: (items) => items,
       loading: () => const <Map<String, dynamic>>[],
       error: (_, _) => const <Map<String, dynamic>>[],
     );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: DropdownButtonFormField<int>(
         isExpanded: true,
         value: options.any((row) => _id(row['id']) == value) ? value : null,
-        decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.apartment_outlined), border: const OutlineInputBorder()),
-        items: [for (final row in options) DropdownMenuItem(value: _id(row['id']), child: Text('${row['name'] ?? row['title'] ?? 'Item'}'))],
+        icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade600),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey.shade600),
+          prefixIcon: Icon(icon, color: _primaryColor.withOpacity(0.7)),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _primaryColor, width: 2),
+          ),
+        ),
+        items: [
+          for (final row in options)
+            DropdownMenuItem(
+              value: _id(row['id']),
+              child: Text(
+                '${row['name'] ?? row['title'] ?? 'Item'}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+        ],
         onChanged: onChanged,
       ),
     );
@@ -155,23 +415,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
+
     final payload = UserProfile.fromMap(const {}).toUpdatePayload(
-      name: _name.text,
-      email: _email.text,
-      pfNo: _pfNo.text,
-      mobileNo: _mobile.text,
+      name: _name.text.trim(),
+      email: _email.text.trim(),
+      pfNo: _pfNo.text.trim(),
+      mobileNo: _mobile.text.trim(),
       departmentId: _departmentId,
       designationId: _designationId,
     );
+
     await ref.read(profileControllerProvider.notifier).update(payload);
     if (!mounted) return;
+
     final failed = ref.read(profileControllerProvider).when(
-          data: (_) => false,
-          loading: () => false,
-          error: (_, _) => true,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failed ? 'Profile update failed.' : 'Profile updated successfully.')));
+      data: (_) => false,
+      loading: () => false,
+      error: (_, _) => true,
+    );
+
+    if (failed) {
+      _showSnackBar('Profile update failed. Please check your data.', Colors.redAccent);
+    } else {
+      _showSnackBar('Profile updated successfully!', Colors.green.shade600);
+    }
   }
 
   int? _id(Object? value) => value is num ? value.toInt() : int.tryParse('$value');
