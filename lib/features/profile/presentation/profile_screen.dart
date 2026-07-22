@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/presentation/register_screen.dart';
 import '../domain/user_profile.dart';
 import 'profile_controller.dart';
+import 'widgets/change_password_dialog.dart';
 import 'widgets/profile_avatar.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -90,6 +91,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               label: const Text('Save Profile'),
             ),
             const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: isBusy ? null : _openChangePasswordDialog,
+              icon: const Icon(Icons.lock_reset_rounded),
+              label: const Text('Change Password'),
+            ),
+            const SizedBox(height: 12),
             Text(
               'Profile image is shown from the API user payload when fields like profile_photo_url, avatar_url, photo_url, or image_url are available.',
               style: TextStyle(color: Colors.grey.shade600, height: 1.4),
@@ -137,6 +144,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         items: [for (final row in options) DropdownMenuItem(value: _id(row['id']), child: Text('${row['name'] ?? row['title'] ?? 'Item'}'))],
         onChanged: onChanged,
       ),
+    );
+  }
+
+  Future<void> _openChangePasswordDialog() async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => const ChangePasswordDialog(),
     );
   }
 

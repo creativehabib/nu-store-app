@@ -6,11 +6,19 @@ class ApiRoutes {
   static const String me = '/api/v1/auth/me';
   static const String logout = '/api/v1/auth/logout';
   static const String updateProfile = '/api/v1/auth/profile';
+  static const String changePassword = '/api/v1/auth/change-password';
   static const List<String> profileUpdateCandidates = [
     updateProfile,
     '/api/v1/auth/me',
     '/api/v1/profile',
     '/api/v1/user/profile',
+  ];
+  static const List<String> changePasswordCandidates = [
+    changePassword,
+    '/api/v1/change-password',
+    '/api/v1/auth/password',
+    '/api/v1/profile/password',
+    '/api/v1/user/password',
   ];
   static const String inventory = '/api/v1/inventory';
   static const String dashboard = '/api/v1/dashboard';

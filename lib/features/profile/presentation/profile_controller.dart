@@ -37,6 +37,18 @@ class ProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
     });
   }
 
+  Future<String> changePassword({
+    required String currentPassword,
+    required String password,
+    required String passwordConfirmation,
+  }) {
+    return _repository.changePassword(
+      currentPassword: currentPassword,
+      password: password,
+      passwordConfirmation: passwordConfirmation,
+    );
+  }
+
   Future<void> update(Map<String, dynamic> payload) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
