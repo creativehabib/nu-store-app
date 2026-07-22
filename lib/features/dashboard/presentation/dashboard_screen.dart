@@ -545,6 +545,38 @@ class _OfflineStatsHint extends StatelessWidget {
 }
 
 
+
+class _ProfileInfoChip extends StatelessWidget {
+  const _ProfileInfoChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foregroundColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _AppDrawer extends StatelessWidget {
   const _AppDrawer({required this.profile, required this.role});
 
@@ -559,29 +591,64 @@ class _AppDrawer extends StatelessWidget {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
-            decoration: const BoxDecoration(color: _primaryColor),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(18, 44, 18, 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 ProfileAvatar(
                   name: profile.name,
                   imageUrl: profile.imageUrl,
-                  radius: 30,
-                  backgroundColor: Colors.white,
+                  radius: 28,
+                  backgroundColor: _primaryColor.withOpacity(0.12),
                   foregroundColor: _primaryColor,
                 ),
-                const SizedBox(height: 16),
-                Text(profile.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                if (profile.email.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(profile.email, style: TextStyle(color: Colors.white.withOpacity(0.82), fontSize: 12)),
-                ],
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                  child: Text(role.label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF333333),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (profile.email.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          profile.email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _ProfileInfoChip(
+                            label: 'Role: ${role.label}',
+                            backgroundColor: const Color(0xFFEAF1FF),
+                            foregroundColor: _primaryColor,
+                          ),
+                          _ProfileInfoChip(
+                            label: 'PF No: ${profile.pfNo.isEmpty ? 'N/A' : profile.pfNo}',
+                            backgroundColor: const Color(0xFFF2F2F2),
+                            foregroundColor: const Color(0xFF333333),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
