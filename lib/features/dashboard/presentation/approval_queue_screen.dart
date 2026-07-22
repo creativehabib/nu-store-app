@@ -8,6 +8,9 @@ import 'requisitioner_screens.dart';
 import 'requisition_details_screen.dart';
 import 'requisition_workflow_settings.dart';
 
+// Primary Brand Color
+const Color _primaryColor = Color(0xFF1E3A8A);
+
 final requisitionQueueProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, queue) async {
   final dio = ref.watch(apiClientProvider).dio;
   final statuses = _queueStatuses(queue);
@@ -84,14 +87,24 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
     return Scaffold(
       backgroundColor: queueColors.background,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: queueColors.primary,
-        foregroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
+        backgroundColor: Colors.white,
+        foregroundColor: _primaryColor,
+        surfaceTintColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
       ),
       body: RefreshIndicator(
+        color: _primaryColor,
+        backgroundColor: Colors.white,
         onRefresh: () async => ref.refresh(requisitionQueueProvider(widget.queue).future),
         child: items.when(
           data: (rows) {
@@ -100,13 +113,13 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
                     child: _QueueHeader(title: widget.title, rows: rows),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _QueueFilters(
                       controller: _searchController,
                       statusFilter: _statusFilter,
@@ -120,24 +133,24 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
                     ),
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
                 if (filteredRows.isEmpty)
-                  const SliverFillRemaining(
+                  SliverFillRemaining(
                     hasScrollBody: false,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text('No pending requisitions found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                          Icon(Icons.inbox_rounded, size: 72, color: Colors.grey.shade300),
+                          const SizedBox(height: 16),
+                          Text('No requisitions found.', style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500)),
                         ],
                       ),
                     ),
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     sliver: SliverToBoxAdapter(
                       child: _QueueTable(
                         rows: filteredRows,
@@ -150,7 +163,7 @@ class _RequisitionApprovalQueueScreenState extends ConsumerState<RequisitionAppr
               ],
             );
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: CircularProgressIndicator(color: _primaryColor)),
           error: (error, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -200,16 +213,14 @@ class _QueueColors {
   final Color fieldFill;
 
   static _QueueColors of(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final primary = scheme.primary;
     return _QueueColors(
-      primary: primary,
-      primaryDark: const Color(0xFF1E3A8A),
-      primarySoft: primary.withOpacity(.10),
-      background: const Color(0xFFF1F5F9),
+      primary: _primaryColor,
+      primaryDark: const Color(0xFF13255A),
+      primarySoft: _primaryColor.withOpacity(.10),
+      background: Colors.grey.shade50,
       card: Colors.white,
-      border: const Color(0xFFD8E2F0),
-      fieldFill: const Color(0xFFF8FAFC),
+      border: Colors.grey.shade200,
+      fieldFill: Colors.grey.shade100,
     );
   }
 }
@@ -226,19 +237,19 @@ class _QueueHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [colors.primary, colors.primaryDark],
+          colors: [colors.primary, const Color(0xFF3B82F6)],
         ),
         boxShadow: [
           BoxShadow(
-            color: colors.primary.withOpacity(.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            color: colors.primary.withOpacity(.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -248,46 +259,43 @@ class _QueueHeader extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.16),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(.22)),
+                  color: Colors.white.withOpacity(.2),
+                  shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.forward_to_inbox, color: Colors.white, size: 28),
+                child: const Icon(Icons.forward_to_inbox_rounded, color: Colors.white, size: 32),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: -0.5),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       'Review, match stock demand, and forward requisitions smoothly.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(.82)),
+                      style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 14, height: 1.4),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
               _HeaderTotalBadge(count: rows.length),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               _StatusPill(label: 'Pending', count: _countStatus(rows, 'pending'), color: const Color(0xFFF59E0B)),
               _StatusPill(label: 'Returned', count: _countStatus(rows, 'returned'), color: const Color(0xFFEF4444)),
-              _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF22C55E)),
-              _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF818CF8)),
+              _StatusPill(label: 'Ready', count: _readyCount(rows), color: const Color(0xFF10B981)),
+              _StatusPill(label: 'Distributed', count: _countStatus(rows, 'distributed'), color: const Color(0xFF6366F1)),
             ],
           ),
         ],
@@ -304,16 +312,16 @@ class _HeaderTotalBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.14),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(.24)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         children: [
-          Text('$count', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 22)),
-          Text('Total', style: TextStyle(color: Colors.white.withOpacity(.78), fontSize: 12)),
+          Text('$count', style: const TextStyle(color: _primaryColor, fontWeight: FontWeight.w800, fontSize: 24)),
+          const Text('Total', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -330,20 +338,24 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.94),
+        color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(.35)),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(radius: 4, backgroundColor: color),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 8),
           Text(
             '$label: $count',
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
           ),
         ],
       ),
@@ -372,82 +384,82 @@ class _QueueFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = _QueueColors.of(context);
 
-    return Card(
-      color: colors.card,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.border),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final narrow = constraints.maxWidth < 600;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 600;
 
-            final searchField = TextField(
-              controller: controller,
-              onChanged: onSearchChanged,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: 'Search requisition, applicant, item...',
-                filled: true,
-                fillColor: colors.fieldFill,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            );
+          final searchField = TextField(
+            controller: controller,
+            onChanged: onSearchChanged,
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded, color: colors.primary.withOpacity(0.7)),
+              hintText: 'Search requisition, applicant, item...',
+              hintStyle: TextStyle(color: Colors.grey.shade400),
+              filled: true,
+              fillColor: colors.fieldFill,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+          );
 
-            final statusField = DropdownButtonFormField<String>(
-              value: statusFilter,
-              isExpanded: true,
-              icon: const Icon(Icons.filter_list),
-              items: statuses.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-              onChanged: onStatusChanged,
-              decoration: InputDecoration(
-                labelText: 'Filter by Status',
-                filled: true,
-                fillColor: colors.fieldFill,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            );
+          final statusField = DropdownButtonFormField<String>(
+            value: statusFilter,
+            isExpanded: true,
+            icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade600),
+            items: statuses.map((item) => DropdownMenuItem(value: item, child: Text(item, overflow: TextOverflow.ellipsis))).toList(),
+            onChanged: onStatusChanged,
+            decoration: InputDecoration(
+              labelText: 'Filter by Status',
+              labelStyle: TextStyle(color: Colors.grey.shade600),
+              filled: true,
+              fillColor: colors.fieldFill,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+          );
 
-            final clearBtn = FilledButton.tonalIcon(
-              onPressed: onClear,
-              icon: const Icon(Icons.clear_all),
-              label: const Text('Clear'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                foregroundColor: colors.primaryDark,
-                backgroundColor: colors.primarySoft,
-              ),
-            );
+          final clearBtn = OutlinedButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Reset', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              foregroundColor: colors.primary,
+              side: BorderSide(color: colors.primary.withOpacity(0.5), width: 1.5),
+            ),
+          );
 
-            if (narrow) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  searchField,
-                  const SizedBox(height: 12),
-                  statusField,
-                  const SizedBox(height: 12),
-                  clearBtn,
-                ],
-              );
-            }
-            return Row(
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 3, child: searchField),
-                const SizedBox(width: 12),
-                Expanded(flex: 2, child: statusField),
-                const SizedBox(width: 12),
+                searchField,
+                const SizedBox(height: 16),
+                statusField,
+                const SizedBox(height: 16),
                 clearBtn,
               ],
             );
-          },
-        ),
+          }
+          return Row(
+            children: [
+              Expanded(flex: 3, child: searchField),
+              const SizedBox(width: 16),
+              Expanded(flex: 2, child: statusField),
+              const SizedBox(width: 16),
+              clearBtn,
+            ],
+          );
+        },
       ),
     );
   }
@@ -471,7 +483,7 @@ class _QueueTable extends ConsumerWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: rows.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
         itemBuilder: (context, index) => _RequisitionMobileCard(
           row: rows[index],
           queue: queue,
@@ -484,32 +496,35 @@ class _QueueTable extends ConsumerWidget {
     final colors = _QueueColors.of(context);
 
     // Desktop View (Data Table)
-    return Card(
-      color: colors.card,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.border),
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(colors.primarySoft),
-          dataRowMaxHeight: 70,
-          columns: const [
-            DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('REQUISITION', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('APPLICANT', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('ITEMS', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('DEMAND', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold))),
+          headingRowColor: MaterialStateProperty.all(colors.fieldFill),
+          dataRowMaxHeight: 75,
+          horizontalMargin: 24,
+          columnSpacing: 32,
+          dividerThickness: 1,
+          columns: [
+            DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('REQUISITION', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('APPLICANT', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('ITEMS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('DEMAND', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
           ],
           rows: List.generate(rows.length, (index) {
             final row = rows[index];
             return DataRow(cells: [
-              DataCell(Text('${index + 1}')),
+              DataCell(Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.w500))),
               DataCell(_RequisitionCell(row: row)),
               DataCell(_ApplicantCell(row: row)),
               DataCell(_ItemsCell(row: row)),
@@ -520,7 +535,7 @@ class _QueueTable extends ConsumerWidget {
                 children: [
                   _StatusBadge(status: '${row['status'] ?? _queueStatus(queue)}'),
                   const SizedBox(height: 4),
-                  Text(_queueAge(row).replaceAll('\n', ' '), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(_queueAge(row).replaceAll('\n', ' '), style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                 ],
               )),
               DataCell(_ActionCell(row: row, queue: queue, settings: settings, action: action)),
@@ -544,38 +559,43 @@ class _RequisitionMobileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = _QueueColors.of(context);
 
-    return Card(
-      color: colors.card,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.border),
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border, width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: _RequisitionCell(row: row)),
                 _StatusBadge(status: '${row['status'] ?? _queueStatus(queue)}'),
               ],
             ),
-            Divider(height: 24, color: colors.border),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Divider(height: 1, color: colors.border),
+            ),
             Row(
               children: [
                 Expanded(child: _ApplicantCell(row: row)),
-                Container(width: 1, height: 40, color: Colors.grey.shade300, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                Container(width: 1, height: 40, color: Colors.grey.shade200, margin: const EdgeInsets.symmetric(horizontal: 16)),
                 Expanded(child: _DemandCell(row: row, compact: true)),
               ],
             ),
-            const SizedBox(height: 12),
-            _ItemsCell(row: row),
             const SizedBox(height: 16),
+            _ItemsCell(row: row),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
+              height: 48,
               child: _ActionCell(row: row, queue: queue, settings: settings, action: action),
             ),
           ],
@@ -592,13 +612,16 @@ class _RequisitionCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      const SizedBox(height: 4),
+      Text(
+          '${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.black87)
+      ),
+      const SizedBox(height: 6),
       Row(
         children: [
-          const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
-          const SizedBox(width: 4),
-          Text(_queueDate(row), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700)),
+          Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey.shade500),
+          const SizedBox(width: 6),
+          Text(_queueDate(row), style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
         ],
       )
     ]);
@@ -612,10 +635,10 @@ class _ApplicantCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text(_queueApplicant(row), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      const SizedBox(height: 2),
+      Text(_queueApplicant(row), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+      const SizedBox(height: 4),
       Text('PF: ${row['pf_no'] ?? row['pf'] ?? '-'} • ${_queueDepartment(row)}',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.3),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
@@ -633,18 +656,19 @@ class _ItemsCell extends StatelessWidget {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
+      runSpacing: 8,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: _primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
           child: Text(
             _queueItemSummary(row),
-            style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w600),
+            style: const TextStyle(color: _primaryColor, fontSize: 12, fontWeight: FontWeight.bold),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Text('${items.isEmpty ? 1 : items.length} item(s)', style: Theme.of(context).textTheme.bodySmall),
+        Text('${items.isEmpty ? 1 : items.length} item(s)', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -667,9 +691,13 @@ class _DemandCell extends StatelessWidget {
         children: [
           Text(
               '$actionQuantity',
-              style: TextStyle(fontSize: compact ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)
+              style: TextStyle(fontSize: compact ? 18 : 20, fontWeight: FontWeight.bold, color: Colors.green.shade600)
           ),
-          Text(hasEditedQuantity ? 'Demanded: $demandedQuantity ${_queueUnit(row)}' : _queueUnit(row), style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(
+              hasEditedQuantity ? 'Demanded: $demandedQuantity ${_queueUnit(row)}' : _queueUnit(row),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500)
+          ),
         ]
     );
   }
@@ -683,14 +711,14 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _statusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(.12),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
           _titleCase(status),
-          style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)
+          style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 0.5)
       ),
     );
   }
@@ -710,18 +738,25 @@ class _ActionCell extends StatelessWidget {
     return printReady
         ? OutlinedButton.icon(
       onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RequisitionDetailsScreen(id: _queueInt(row['id']), fallback: row))),
-      icon: const Icon(Icons.print_outlined, size: 18),
-      label: const Text('Print'),
-      style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      icon: const Icon(Icons.print_rounded, size: 18),
+      label: const Text('Print', style: TextStyle(fontWeight: FontWeight.bold)),
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        foregroundColor: _primaryColor,
+        side: BorderSide(color: _primaryColor.withOpacity(0.5), width: 1.5),
+      ),
     )
         : FilledButton.icon(
       onPressed: () => showDialog<void>(
         context: context,
         builder: (_) => _DetermineQuantityDialog(row: row, queue: queue, settings: settings, action: action),
       ),
-      icon: const Icon(Icons.visibility_outlined, size: 18),
-      label: const Text('Action'),
-      style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+      icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+      label: const Text('Action', style: TextStyle(fontWeight: FontWeight.bold)),
+      style: FilledButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: _primaryColor,
+      ),
     );
   }
 }
@@ -768,101 +803,134 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
     final isMobile = MediaQuery.sizeOf(context).width < 600;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.all(16),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
       child: Container(
-        width: isMobile ? double.infinity : 700,
-        constraints: const BoxConstraints(maxHeight: 800),
+        width: isMobile ? double.infinity : 750,
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+            // Modern Header
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: _primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.assignment_turned_in_rounded, color: _primaryColor),
+                  ),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Action: ${widget.row['requisition_no'] ?? 'REQ-${widget.row['id'] ?? '-'}'}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        Text('${_queueApplicant(widget.row)} • ${_queueDepartment(widget.row)}', style: TextStyle(color: Colors.grey.shade700)),
+                        Text('Action: ${widget.row['requisition_no'] ?? 'REQ-${widget.row['id'] ?? '-'}'}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text('${_queueApplicant(widget.row)} • ${_queueDepartment(widget.row)}', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                    style: IconButton.styleFrom(backgroundColor: Colors.grey.shade200),
+                    icon: const Icon(Icons.close_rounded),
+                    style: IconButton.styleFrom(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300))),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // Body
+
+            // Scrollable Body
             Flexible(
               child: ListView(
                 padding: const EdgeInsets.all(24),
                 shrinkWrap: true,
                 children: [
-                  Text('Items Requested (${_items.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text('Items Requested', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+                        child: Text('${_items.length} items', style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-                  // Responsive Items List instead of DataTable for better Mobile UX
+                  // Elegant Item Cards
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, __) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       return Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
                         ),
                         child: Wrap(
-                          spacing: 16,
-                          runSpacing: 16,
-                          crossAxisAlignment: WrapCrossAlignment.end,
+                          spacing: 20,
+                          runSpacing: 20,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             SizedBox(
-                                width: isMobile ? double.infinity : 200,
+                                width: isMobile ? double.infinity : 220,
                                 child: _ItemNameWithUnit(item: item)
                             ),
+                            Container(width: 1, height: 40, color: Colors.grey.shade200),
                             SizedBox(
-                              width: 100,
+                              width: 80,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Stock', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                  Text('${_queueCurrentStock(item)}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
+                                  Text('Stock', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  Text('${_queueCurrentStock(item)}', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 18)),
                                 ],
                               ),
                             ),
                             SizedBox(
-                              width: 100,
+                              width: 80,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Demanded', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                  Text('${_queueDemand(item)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  Text('Demand', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  Text('${_queueDemand(item)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                                 ],
                               ),
                             ),
-                            SizedBox(
-                              width: 120,
+                            Expanded(
                               child: TextField(
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                 decoration: InputDecoration(
                                   labelText: 'Action Qty',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  isDense: true,
+                                  labelStyle: TextStyle(color: _primaryColor.withOpacity(0.8)),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primaryColor, width: 2)),
+                                  filled: true,
+                                  fillColor: Colors.blue.shade50.withOpacity(0.3),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                                 ),
                               ),
                             ),
@@ -871,58 +939,95 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                       );
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
+                  const Text('Additional Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _remarksController,
-                    minLines: 2,
-                    maxLines: 4,
+                    minLines: 3,
+                    maxLines: 5,
                     decoration: InputDecoration(
-                      labelText: 'Note / Comment (Optional)',
-                      hintText: 'e.g., Sufficient in stock...',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      hintText: 'Add note or comments (Optional)',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: _primaryColor, width: 2)),
                       filled: true,
-                      fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                      fillColor: Colors.grey.shade50,
+                      contentPadding: const EdgeInsets.all(20),
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // Footer Action
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+
+            // Fixed Footer Action Area (Only Return & Action Buttons)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))
+                ],
+              ),
+              child: isMobile
+                  ? Column(
+                // Mobile View: Stacked buttons without Cancel
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (widget.queue != 'initiator') ...[
-                    FilledButton.icon(
-                      onPressed: _submitting ? null : _sendBack,
-                      icon: _submitting
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.keyboard_return_rounded),
-                      label: const Text('Send Back'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
-                  TextButton(
-                      onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-                      child: const Text('Cancel')
-                  ),
-                  const SizedBox(width: 12),
                   FilledButton.icon(
                     onPressed: _submitting ? null : _submit,
-                    icon: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_circle_outline),
-                    label: Text(_submitting ? 'Processing...' : widget.action.buttonLabel),
+                    icon: _submitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Icon(Icons.check_circle_outline_rounded),
+                    label: Text(_submitting ? 'Processing...' : widget.action.buttonLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
                     style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      backgroundColor: _primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  if (widget.queue != 'initiator') ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _sendBack,
+                      icon: _submitting ? const SizedBox.shrink() : const Icon(Icons.keyboard_return_rounded),
+                      label: Text(_submitting ? 'Wait...' : 'Return', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ],
+              )
+                  : Row(
+                // Desktop/Tablet View: Side-by-side buttons without Cancel
+                children: [
+                  if (widget.queue != 'initiator') ...[
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _sendBack,
+                      icon: _submitting ? const SizedBox.shrink() : const Icon(Icons.keyboard_return_rounded),
+                      label: Text(_submitting ? 'Wait...' : 'Return', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red, width: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _submitting ? null : _submit,
+                    icon: _submitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Icon(Icons.check_circle_outline_rounded),
+                    label: Text(_submitting ? 'Processing...' : widget.action.buttonLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -935,7 +1040,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
   }
 
   Future<void> _sendBack() async {
-    await _submitAction('return', buttonLabel: 'Send Back');
+    await _submitAction('return', buttonLabel: 'Return');
   }
 
   Future<void> _submit() async {
@@ -953,7 +1058,12 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
       if (supplyQuantity <= 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Quantity must be greater than 0'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+            SnackBar(
+              content: const Text('Quantity must be greater than 0', style: TextStyle(color: Colors.white)),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           );
         }
         setState(() => _submitting = false);
@@ -986,10 +1096,24 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
       ref.invalidate(myRequisitionsProvider);
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$buttonLabel successful'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$buttonLabel successful', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          )
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_actionErrorMessage(error), maxLines: 3, overflow: TextOverflow.ellipsis), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_actionErrorMessage(error), maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          )
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -1004,9 +1128,9 @@ class _ItemNameWithUnit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text(_queueProductName(item), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      const SizedBox(height: 2),
-      Text('Unit: ${_queueUnit(item)}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600)),
+      Text(_queueProductName(item), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+      const SizedBox(height: 4),
+      Text('Unit: ${_queueUnit(item)}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
     ]);
   }
 }
@@ -1043,24 +1167,28 @@ class _QueueErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-        color: Colors.red.shade50,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.red.shade200)),
-        child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
-                const SizedBox(height: 12),
-                Text(message, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
-              ],
-            )
+    return Container(
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, color: Colors.red.shade400, size: 56),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w500, fontSize: 15)),
+          ],
         )
     );
   }
 }
+
+// -----------------------------------------------------------------------------
+// HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
 
 String _queueStatus(String queue) {
   if (queue == 'assistant_director') return 'initiator_checked';
@@ -1311,9 +1439,9 @@ int _readyCount(List<Map<String, dynamic>> rows) {
 
 Color _statusColor(String status) {
   final normalized = status.toLowerCase();
-  if (normalized.contains('distributed')) return const Color(0xFF4F46E5);
+  if (normalized.contains('distributed')) return const Color(0xFF6366F1);
   if (normalized.contains('return') || normalized.contains('reject')) return const Color(0xFFEF4444);
-  if (normalized.contains('ready') || normalized.contains('approved')) return const Color(0xFF16A34A);
+  if (normalized.contains('ready') || normalized.contains('approved')) return const Color(0xFF10B981);
   return const Color(0xFFF59E0B);
 }
 

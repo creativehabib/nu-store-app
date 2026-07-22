@@ -9,6 +9,9 @@ import '../domain/dashboard_stats.dart';
 import 'dashboard_controller.dart';
 import 'requisitioner_screens.dart';
 
+// Primary brand color to keep consistency with Login/Register screens
+const Color _primaryColor = Color(0xFF1E3A8A);
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -19,7 +22,10 @@ class DashboardScreen extends ConsumerWidget {
 
     if (!auth.isInitialized) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(color: _primaryColor),
+        ),
       );
     }
 
@@ -27,12 +33,13 @@ class DashboardScreen extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
+              (route) => false,
         );
       });
 
       return const Scaffold(
-        body: Center(child: Text('Please login to continue.')),
+        backgroundColor: Colors.white,
+        body: Center(child: Text('Please login to continue.', style: TextStyle(fontWeight: FontWeight.w500))),
       );
     }
 
@@ -40,21 +47,35 @@ class DashboardScreen extends ConsumerWidget {
     final selectedIndex = requestedIndex >= navItems.length ? 0 : requestedIndex;
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('NU Store Management'),
-        backgroundColor: const Color(0xFF2563EB),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'NU Store Management',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: _primaryColor,
+        elevation: 0,
+        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
         actions: [
           IconButton(
             tooltip: 'Notifications',
-            icon: const Badge(child: Icon(Icons.notifications_outlined)),
+            icon: Badge(
+              backgroundColor: Colors.redAccent,
+              child: Icon(Icons.notifications_outlined, color: Colors.grey.shade700),
+            ),
             onPressed: () {},
           ),
           IconButton(
             tooltip: 'Logout',
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.logout_rounded, color: Colors.grey.shade700),
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       drawer: _AppDrawer(
@@ -70,10 +91,17 @@ class DashboardScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
+        backgroundColor: Colors.white,
+        indicatorColor: _primaryColor.withOpacity(0.15),
+        surfaceTintColor: Colors.white,
         onDestinationSelected: (index) => ref.read(selectedNavIndexProvider.notifier).state = index,
         destinations: [
           for (final item in navItems)
-            NavigationDestination(icon: Icon(item.icon), label: item.label),
+            NavigationDestination(
+              icon: Icon(item.icon, color: Colors.grey.shade600),
+              selectedIcon: Icon(item.icon, color: _primaryColor),
+              label: item.label,
+            ),
         ],
       ),
     );
@@ -94,7 +122,19 @@ class _DashboardBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (selectedIndex != 0) {
-      return Center(child: Text('${navItems[selectedIndex].label} module coming next'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(navItems[selectedIndex].icon, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              '${navItems[selectedIndex].label} module coming next',
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
     }
 
     if (role == AppRole.requisitioner) {
@@ -107,29 +147,32 @@ class _DashboardBody extends ConsumerWidget {
 
     final stats = ref.watch(dashboardStatsProvider);
     return RefreshIndicator(
+      color: _primaryColor,
+      backgroundColor: Colors.white,
       onRefresh: () async {
         await ref.refresh(dashboardStatsProvider.future);
       },
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         children: [
-          const Text('Dashboard overview', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
+          const Text('Dashboard Overview', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _primaryColor)),
+          const SizedBox(height: 20),
           stats.when(
             data: (value) => GridView.count(
               crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.1,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _StatCard(title: 'Current Stock', value: value.currentStock, icon: Icons.warehouse, color: Colors.blue),
-                _StatCard(title: 'Pending Requisitions', value: value.pendingRequisitions, icon: Icons.pending_actions, color: Colors.orange),
-                _StatCard(title: 'Approval Queue', value: value.approvalQueue, icon: Icons.fact_check, color: Colors.green),
-                _StatCard(title: 'Low Stock Alerts', value: value.lowStockItems, icon: Icons.warning_amber, color: Colors.red),
+                _StatCard(title: 'Current Stock', value: value.currentStock, icon: Icons.warehouse_rounded, color: Colors.blue),
+                _StatCard(title: 'Pending Req.', value: value.pendingRequisitions, icon: Icons.pending_actions_rounded, color: Colors.orange),
+                _StatCard(title: 'Approval Queue', value: value.approvalQueue, icon: Icons.fact_check_rounded, color: Colors.green),
+                _StatCard(title: 'Low Stock Alerts', value: value.lowStockItems, icon: Icons.warning_amber_rounded, color: Colors.redAccent),
               ],
             ),
-            loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())),
+            loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: _primaryColor))),
             error: (_, _) => const _OfflineStatsHint(),
           ),
         ],
@@ -149,27 +192,49 @@ class _RoleDashboard extends ConsumerWidget {
     final stats = ref.watch(dashboardStatsProvider);
 
     return RefreshIndicator(
+      color: _primaryColor,
+      backgroundColor: Colors.white,
       onRefresh: () async => ref.refresh(dashboardStatsProvider.future),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         children: [
           _RoleHero(role: role),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           stats.when(
             data: (value) => _InitiatorInsights(stats: value, enabled: role == AppRole.initiator),
-            loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
+            loading: () => const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: _primaryColor))),
             error: (error, _) => _OfflineStatsHint(message: 'Live dashboard data load failed: $error'),
           ),
-          const SizedBox(height: 16),
-          Text('Quick actions', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 28),
+          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor)),
+          const SizedBox(height: 12),
           for (final item in items)
-            Card(
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4)),
+                ],
+              ),
               child: ListTile(
-                leading: Icon(item.icon, color: const Color(0xFF2563EB)),
-                title: Text(item.label),
-                subtitle: Text(_actionHint(item.label)),
-                trailing: const Icon(Icons.chevron_right),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(item.icon, color: _primaryColor),
+                ),
+                title: Text(item.label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(_actionHint(item.label), style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                ),
+                trailing: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey.shade400),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
                 ),
@@ -189,22 +254,47 @@ class _RoleHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF7C3AED)]),
+        gradient: const LinearGradient(
+          colors: [_primaryColor, Color(0xFF3B82F6)], // Updated gradient
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(radius: 28, backgroundColor: Colors.white24, child: Icon(Icons.storefront, color: Colors.white, size: 30)),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 32),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${role.label} Dashboard', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                const Text('Pending checks, stock-out alerts, print-ready requisitions, and distribution work in one place.', style: TextStyle(color: Colors.white70)),
+                Text(
+                  '${role.label} Dashboard',
+                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pending checks, stock-out alerts, print-ready requisitions, and distribution work in one place.',
+                  style: TextStyle(color: Colors.white.withOpacity(0.85), height: 1.4, fontSize: 14),
+                ),
               ],
             ),
           ),
@@ -246,7 +336,7 @@ class _InitiatorInsights extends StatelessWidget {
                 subtitle: 'Ready to process',
                 value: printReady + distributeReady,
                 icon: Icons.print_outlined,
-                color: const Color(0xFF16A34A),
+                color: const Color(0xFF10B981),
               ),
               _MetricTile(
                 title: 'Stock Out Products',
@@ -260,7 +350,7 @@ class _InitiatorInsights extends StatelessWidget {
                 subtitle: enabled ? 'System activity' : 'Visible activity',
                 value: total,
                 icon: Icons.file_copy_outlined,
-                color: const Color(0xFF2563EB),
+                color: _primaryColor,
               ),
             ];
             final columns = constraints.maxWidth > 760 ? 4 : constraints.maxWidth > 520 ? 2 : 1;
@@ -278,8 +368,8 @@ class _InitiatorInsights extends StatelessWidget {
 
             return GridView.count(
               crossAxisCount: columns,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
               childAspectRatio: columns == 2 ? 2.15 : 1.65,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -288,15 +378,26 @@ class _InitiatorInsights extends StatelessWidget {
           },
         ),
         if (stats.recentRequisitions.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text('Recent requisitions', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 28),
+          const Text('Recent Requisitions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor)),
+          const SizedBox(height: 12),
           for (final row in stats.recentRequisitions.take(4))
-            Card(
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
               child: ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}'),
-                subtitle: Text('Status: ${row['status'] ?? 'pending'}'),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+                  child: const Icon(Icons.receipt_long_outlined, color: Colors.grey),
+                ),
+                title: Text('${row['requisition_no'] ?? 'REQ-${row['id'] ?? '-'}'}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('Status: ${row['status'] ?? 'pending'}', style: TextStyle(color: Colors.grey.shade600)),
+                trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
               ),
             ),
         ],
@@ -316,57 +417,52 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: color.withOpacity(.20)),
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
       ),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 112),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [color.withOpacity(.12), color.withOpacity(.04)],
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text('$value', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1, color: color)),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1)),
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: color.withOpacity(.85), fontSize: 12),
-                  ),
-                ],
-              ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(.12), borderRadius: BorderRadius.circular(14)),
-              child: Icon(icon, color: color.withOpacity(.70), size: 28),
-            ),
-          ],
-        ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+        ],
       ),
     );
   }
@@ -382,18 +478,38 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            CircleAvatar(backgroundColor: color.withOpacity(.12), child: Icon(icon, color: color)),
-            Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            Text(title, style: const TextStyle(color: Colors.black54)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text('$value', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 4),
+          Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
+        ],
       ),
     );
   }
@@ -406,10 +522,20 @@ class _OfflineStatsHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(message),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.wifi_off_rounded, color: Colors.orange.shade700),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: TextStyle(color: Colors.orange.shade900, height: 1.4))),
+        ],
       ),
     );
   }
@@ -424,25 +550,61 @@ class _AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
+      backgroundColor: Colors.white,
+      child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            accountName: Text(userName),
-            accountEmail: Text(role.label),
-            currentAccountPicture: const CircleAvatar(child: Icon(Icons.person)),
-          ),
-          for (final item in _drawerItemsFor(role))
-            ListTile(
-              leading: Icon(item.icon),
-              title: Text(item.label),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
-                );
-              },
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
+            decoration: const BoxDecoration(
+              color: _primaryColor,
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person_outline, size: 32, color: _primaryColor),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    role.label,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              children: [
+                for (final item in _drawerItemsFor(role))
+                  ListTile(
+                    leading: Icon(item.icon, color: Colors.grey.shade700),
+                    title: Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => screenForDrawerLabel(item.label)),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -490,16 +652,16 @@ List<_NavItem> _drawerItemsFor(AppRole role) {
   }
 
   if (RolePermissions.can(role, AppPermission.createRequisition)) {
-    items.add(const _NavItem(icon: Icons.playlist_add, label: 'Submit Demand'));
+    items.add(const _NavItem(icon: Icons.playlist_add_rounded, label: 'Submit Demand'));
   }
 
   if (RolePermissions.can(role, AppPermission.viewOwnRequisitions) ||
       RolePermissions.can(role, AppPermission.viewRequisitionLocation)) {
-    items.add(const _NavItem(icon: Icons.timeline, label: 'My Requisitions'));
+    items.add(const _NavItem(icon: Icons.timeline_rounded, label: 'My Requisitions'));
   }
 
   if (RolePermissions.can(role, AppPermission.forwardRequisition)) {
-    items.add(const _NavItem(icon: Icons.forward_to_inbox, label: 'Initiator Queue'));
+    items.add(const _NavItem(icon: Icons.forward_to_inbox_rounded, label: 'Initiator Queue'));
   }
 
   if (RolePermissions.can(role, AppPermission.assistantDirectorVerify)) {
@@ -523,7 +685,7 @@ List<_NavItem> _drawerItemsFor(AppRole role) {
   }
 
   if (RolePermissions.can(role, AppPermission.manageSettings)) {
-    items.add(const _NavItem(icon: Icons.language, label: 'Language & Settings'));
+    items.add(const _NavItem(icon: Icons.language_rounded, label: 'Language & Settings'));
   }
 
   return items;
