@@ -918,7 +918,7 @@ class _DetermineQuantityDialogState extends ConsumerState<_DetermineQuantityDial
                               ),
                             ),
                             SizedBox(
-                              width: 140, // Removed Expanded, added Fixed Width to fix mobile crash
+                              width: 200, // Removed Expanded, added Fixed Width to fix mobile crash
                               child: TextField(
                                 controller: _quantityControllers[index],
                                 keyboardType: TextInputType.number,
