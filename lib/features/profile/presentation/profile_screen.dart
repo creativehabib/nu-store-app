@@ -35,7 +35,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final profileState = ref.watch(profileControllerProvider);
-    final profile = profileState.valueOrNull;
+    final profile = profileState.when(
+      data: (value) => value,
+      loading: () => null,
+      error: (_, _) => null,
+    );
+    final isBusy = profileState.when(
+      data: (_) => false,
+      loading: () => true,
+      error: (_, _) => false,
+    );
+    final errorText = profileState.when(
+      data: (_) => null,
+      loading: () => null,
+      error: (error, _) => '$error',
+    );
     if (!_seeded && profile != null) _seed(profile);
 
     return Scaffold(
@@ -63,14 +77,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            if (profileState.hasError)
+            if (errorText != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text('${profileState.error}', style: const TextStyle(color: Colors.redAccent)),
+                child: Text(errorText, style: const TextStyle(color: Colors.redAccent)),
               ),
             FilledButton.icon(
-              onPressed: profileState.isLoading ? null : _submit,
-              icon: profileState.isLoading
+              onPressed: isBusy ? null : _submit,
+              icon: isBusy
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.save_outlined),
               label: const Text('Save Profile'),
@@ -109,7 +123,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _dropdown(String label, AsyncValue<List<Map<String, dynamic>>> rows, int? value, ValueChanged<int?> onChanged) {
-    final options = rows.valueOrNull ?? const <Map<String, dynamic>>[];
+    final options = rows.when(
+      data: (items) => items,
+      loading: () => const <Map<String, dynamic>>[],
+      error: (_, _) => const <Map<String, dynamic>>[],
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: DropdownButtonFormField<int>(
@@ -134,7 +152,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     await ref.read(profileControllerProvider.notifier).update(payload);
     if (!mounted) return;
-    final failed = ref.read(profileControllerProvider).hasError;
+    final failed = ref.read(profileControllerProvider).when(
+          data: (_) => false,
+          loading: () => false,
+          error: (_, _) => true,
+        );
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(failed ? 'Profile update failed.' : 'Profile updated successfully.')));
   }
 
