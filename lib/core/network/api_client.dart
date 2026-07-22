@@ -3,13 +3,15 @@ import 'package:dio/dio.dart';
 import '../storage/local_storage_service.dart';
 
 class ApiClient {
+  static const String defaultBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://store.creativehabib.com',
+  );
+
   ApiClient(this._storage)
     : dio = Dio(
         BaseOptions(
-          baseUrl: const String.fromEnvironment(
-            'API_BASE_URL',
-            defaultValue: 'https://store.creativehabib.com',
-          ),
+          baseUrl: defaultBaseUrl,
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),
           headers: const {
