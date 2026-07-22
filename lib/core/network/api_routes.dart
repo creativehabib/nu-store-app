@@ -5,6 +5,13 @@ class ApiRoutes {
   static const String login = '/api/v1/auth/login';
   static const String me = '/api/v1/auth/me';
   static const String logout = '/api/v1/auth/logout';
+  static const String updateProfile = '/api/v1/auth/profile';
+  static const List<String> profileUpdateCandidates = [
+    updateProfile,
+    '/api/v1/auth/me',
+    '/api/v1/profile',
+    '/api/v1/user/profile',
+  ];
   static const String inventory = '/api/v1/inventory';
   static const String dashboard = '/api/v1/dashboard';
   static const String products = '/api/v1/products';
