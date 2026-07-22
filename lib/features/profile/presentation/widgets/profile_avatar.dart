@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_client.dart';
+
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
@@ -23,15 +25,25 @@ class ProfileAvatar extends StatelessWidget {
     final normalizedImageUrl = _absoluteImageUrl(imageUrl);
 
     if (normalizedImageUrl != null) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: bgColor.withOpacity(0.12),
-        backgroundImage: NetworkImage(normalizedImageUrl),
-        onBackgroundImageError: (_, _) {},
-        child: const SizedBox.shrink(),
+      return ClipOval(
+        child: Image.network(
+          normalizedImageUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _fallbackAvatar(bgColor, fgColor),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _fallbackAvatar(bgColor.withOpacity(0.12), bgColor);
+          },
+        ),
       );
     }
 
+    return _fallbackAvatar(bgColor, fgColor);
+  }
+
+  Widget _fallbackAvatar(Color bgColor, Color fgColor) {
     return CircleAvatar(
       radius: radius,
       backgroundColor: bgColor,
@@ -48,10 +60,13 @@ class ProfileAvatar extends StatelessWidget {
 
   String? _absoluteImageUrl(String? value) {
     if (value == null || value.trim().isEmpty) return null;
-    final url = value.trim();
+    final url = value.trim().replaceAll('\\', '/');
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    final baseUrl = ApiClient.defaultBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    if (url.startsWith('/storage/')) return '$baseUrl$url';
+    if (url.startsWith('storage/')) return '$baseUrl/$url';
     final path = url.startsWith('/') ? url : '/storage/$url';
-    return 'https://store.creativehabib.com$path';
+    return '$baseUrl$path';
   }
 
   String _initials(String value) {

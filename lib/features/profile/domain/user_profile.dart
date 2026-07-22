@@ -33,7 +33,11 @@ class UserProfile {
       departmentName: _nestedText(source['department'], ['name', 'title', 'code']),
       designationTitle: _nestedText(source['designation'], ['title', 'name']),
       imageUrl: _nullableText(
-        source['profile_photo_url'] ??
+        source['picture_url'] ??
+            source['picture'] ??
+            source['profile_picture_url'] ??
+            source['profile_picture'] ??
+            source['profile_photo_url'] ??
             source['profile_image_url'] ??
             source['avatar_url'] ??
             source['photo_url'] ??
